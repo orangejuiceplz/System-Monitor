@@ -18,6 +18,7 @@ public:
     void setCpuThreshold(double threshold);
     void setMemoryThreshold(double threshold);
     void setDiskThreshold(double threshold);
+    double getGpuTempThreshold() const { return gpuTempThreshold; }
 
 private:
     std::unordered_map<std::string, std::string> settings;
@@ -25,4 +26,5 @@ private:
     void setDefaultValues();
     template<typename T>
     T getValue(const std::string& key, T defaultValue) const;
+    double gpuTempThreshold;
 };

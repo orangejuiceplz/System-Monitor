@@ -49,16 +49,17 @@ void SystemMonitor::update() {
     logger->log(LogLevel::INFO, logMessage);
     display.addLogMessage(logMessage);
 
-    auto processes = processMonitor.getProcesses();
-    std::sort(processes.begin(), processes.end(), 
-              [](const ProcessInfo& a, const ProcessInfo& b) { return a.cpuUsage > b.cpuUsage; });
+    // Get and sort processes
+    auto processes = getProcesses();
 
+    // Log top 5 processes
     for (size_t i = 0; i < std::min<size_t>(5, processes.size()); ++i) {
         const auto& p = processes[i];
         std::string processLog = "Top Process " + std::to_string(i+1) + ": " + p.name + 
                                  " (PID: " + std::to_string(p.pid) + ") CPU: " + 
                                  std::to_string(p.cpuUsage) + "%, Mem: " + 
-                                 std::to_string(p.memoryUsage) + " MB";
+                                 std::to_string(p.memoryUsage) + " MB, Overall: " +
+                                 std::to_string(p.overallUsage) + "%";
         logger->log(LogLevel::INFO, processLog);
         display.addLogMessage(processLog);
     }
@@ -185,5 +186,27 @@ void SystemMonitor::checkAlerts() {
                                    "%, Disk=" + std::to_string(diskUsage) + "%";
         logger->log(LogLevel::WARNING, alertMessage);
         display.showAlert(alertMessage);
+    }
+
+    if (nvml_available) {
+        auto gpuInfos = gpuMonitor.getGPUInfo();
+        for (const auto& gpu : gpuInfos) {
+            if (gpu.temperature > config.getGpuTempThreshold()) {
+                std::string gpuAlertMessage = "GPU " + std::to_string(gpu.index) + 
+                                              " temperature alert: " + 
+                                              std::to_string(gpu.temperature) + "°C";
+                logger->log(LogLevel::WARNING, gpuAlertMessage);
+                display.showAlert(gpuAlertMessage);
+                alertTriggered = true;
+            }
+        }
+    }
+}
+
+void SystemMonitor::run() {
+    while (display.handleInput()) {
+        update();
+        display.update(*this);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }

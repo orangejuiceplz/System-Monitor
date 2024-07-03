@@ -1,4 +1,3 @@
-// src/display.cpp
 #include "../include/display.h"
 #include <iomanip>
 #include <sstream>
@@ -52,7 +51,6 @@ void Display::initializeScreen() {
 
 void Display::update(const SystemMonitor& monitor) {
     updateMainWindow(monitor);
-    updateGPUInfo(monitor.getGPUInfo());
     updateLogWindow();
 }
 
@@ -79,19 +77,47 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     mvwprintw(mainWindow, 4, 2, "Memory Usage: %.2f%%", monitor.getMemoryUsage());
     mvwprintw(mainWindow, 5, 2, "Disk Usage:   %.2f%%", monitor.getDiskUsage());
 
-    // Adjust the number of processes shown based on available space
-    int availableLines = yMax - 15; // Reserve space for GPU info
-    int processesToShow = std::min(5, availableLines);
+    // Add GPU information
+    int startY = 7;
+    auto gpuInfos = monitor.getGPUInfo();
+    if (gpuInfos.empty()) {
+        mvwprintw(mainWindow, startY++, 2, "GPU: Not available");
+    } else {
+        for (const auto& gpu : gpuInfos) {
+            mvwprintw(mainWindow, startY++, 2, "GPU %d: %s", gpu.index, gpu.name.c_str());
+            mvwprintw(mainWindow, startY, 4, "Temp: ");
+            if (gpu.temperature >= 0) {
+                mvwprintw(mainWindow, startY, 10, "%.1f°C", gpu.temperature);
+            } else {
+                mvwprintw(mainWindow, startY, 10, "N/A");
+            }
+            mvwprintw(mainWindow, startY, 20, "Util: ");
+            if (gpu.gpuUtilization >= 0) {
+                mvwprintw(mainWindow, startY, 26, "%.1f%%", gpu.gpuUtilization);
+            } else {
+                mvwprintw(mainWindow, startY, 26, "N/A");
+            }
+            mvwprintw(mainWindow, startY, 36, "Mem: ");
+            if (gpu.memoryUtilization >= 0) {
+                mvwprintw(mainWindow, startY, 41, "%.1f%%", gpu.memoryUtilization);
+            } else {
+                mvwprintw(mainWindow, startY, 41, "N/A");
+            }
+            startY += 2;
+        }
+    }
 
-    mvwprintw(mainWindow, 7, 2, "Top %d Processes by CPU Usage:", processesToShow);
+    // Top 5 processes by overall resource usage
+    mvwprintw(mainWindow, startY++, 2, "Top 5 Processes by Resource Usage:");
     auto processes = monitor.getProcesses();
-    std::sort(processes.begin(), processes.end(), 
-              [](const ProcessInfo& a, const ProcessInfo& b) { return a.cpuUsage > b.cpuUsage; });
-
-    for (int i = 0; i < processesToShow && i < static_cast<int>(processes.size()); ++i) {
-        const auto& p = processes[i];
-        mvwprintw(mainWindow, 9 + i, 2, "%-20s (PID: %5d): CPU %.2f%%, Mem %.2f MB", 
-                 p.name.c_str(), p.pid, p.cpuUsage, p.memoryUsage);
+    if (processes.empty()) {
+        mvwprintw(mainWindow, startY++, 2, "No processes found");
+    } else {
+        for (int i = 0; i < 5 && i < static_cast<int>(processes.size()); ++i) {
+            const auto& p = processes[i];
+            mvwprintw(mainWindow, startY + i, 2, "%-20s (PID: %5d): CPU %.1f%%, Mem %.1f MB, Overall %.1f%%", 
+                     p.name.c_str(), p.pid, p.cpuUsage, p.memoryUsage, p.overallUsage);
+        }
     }
 
     if (COLORS >= 8) {
@@ -107,18 +133,6 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     }
 
     wrefresh(mainWindow);
-}
-
-void Display::updateGPUInfo(const std::vector<GPUInfo>& gpuInfos) {
-    int startY = 15; 
-    for (const auto& gpu : gpuInfos) {
-        mvwprintw(mainWindow, startY++, 2, "GPU %d: %s", gpu.index, gpu.name.c_str());
-        mvwprintw(mainWindow, startY++, 4, "Temp: %.1f°C, Util: %.1f%%, Mem: %.1f%%", 
-                  gpu.temperature, gpu.gpuUtilization, gpu.memoryUtilization);
-        mvwprintw(mainWindow, startY++, 4, "Power: %.1fW, Fan: %.1f%%", 
-                  gpu.powerUsage, gpu.fanSpeed);
-        startY++; 
-    }
 }
 
 void Display::updateLogWindow() {

@@ -24,6 +24,7 @@ public:
     [[nodiscard]] std::vector<GPUInfo> getGPUInfo() const;
     [[nodiscard]] bool isAlertTriggered() const;
     [[nodiscard]] bool isGPUMonitoringAvailable() const;
+    void run();
 
 private:
     double cpuUsage;

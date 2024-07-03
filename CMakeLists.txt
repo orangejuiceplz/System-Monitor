@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find required packages
 find_package(Curses REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PROCPS REQUIRED libprocps)
 
 # CUDA and NVML
 include_directories(/opt/cuda/targets/x86_64-linux/include)
@@ -22,6 +24,7 @@ endif()
 # Include directories
 include_directories(include)
 include_directories(${CURSES_INCLUDE_DIR})
+include_directories(${PROCPS_INCLUDE_DIRS})
 
 # Add executable
 add_executable(system_monitor
@@ -40,8 +43,12 @@ target_link_libraries(system_monitor
     stdc++fs
     ${NVML_LIBRARY}
     ${CUDA_RUNTIME_LIBRARY}
+    ${PROCPS_LIBRARIES}
     dl
 )
+
+# Add link directories
+link_directories(${PROCPS_LIBRARY_DIRS})
 
 # Add compiler warnings
 if(MSVC)

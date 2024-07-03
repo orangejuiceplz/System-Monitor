@@ -1,6 +1,8 @@
 #include "../include/gpu_monitor.h"
 #include <stdexcept>
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 GPUMonitor::GPUMonitor() : result(NVML_SUCCESS), deviceCount(0) {}
 
@@ -11,20 +13,17 @@ GPUMonitor::~GPUMonitor() {
 }
 
 bool GPUMonitor::initialize() {
-    std::cout << "Initializing GPU Monitor..." << std::endl;
     result = nvmlInit();
     if (result != NVML_SUCCESS) {
         std::cerr << "Failed to initialize NVML: " << nvmlErrorString(result) << std::endl;
         return false;
     }
-    std::cout << "NVML initialized successfully." << std::endl;
 
     result = nvmlDeviceGetCount(&deviceCount);
     if (result != NVML_SUCCESS) {
         std::cerr << "Failed to get device count: " << nvmlErrorString(result) << std::endl;
         return false;
     }
-    std::cout << "Found " << deviceCount << " GPU(s)." << std::endl;
 
     gpuInfos.resize(deviceCount);
     return true;
@@ -45,25 +44,41 @@ void GPUMonitor::update() {
 
         unsigned int temperature;
         result = nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU, &temperature);
-        checkNVMLError(result, "Failed to get temperature");
-        gpuInfos[i].temperature = static_cast<float>(temperature);
+        if (result == NVML_SUCCESS) {
+            gpuInfos[i].temperature = static_cast<float>(temperature);
+        } else {
+            gpuInfos[i].temperature = -1.0f; // Indicate unavailable
+        }
 
         unsigned int power;
         result = nvmlDeviceGetPowerUsage(device, &power);
-        checkNVMLError(result, "Failed to get power usage");
-        gpuInfos[i].powerUsage = static_cast<float>(power) / 1000.0f; // Convert to Watts
+        if (result == NVML_SUCCESS) {
+            gpuInfos[i].powerUsage = static_cast<float>(power) / 1000.0f; // Convert to Watts
+        } else {
+            gpuInfos[i].powerUsage = -1.0f; // Indicate unavailable
+        }
 
         unsigned int fanSpeed;
         result = nvmlDeviceGetFanSpeed(device, &fanSpeed);
-        checkNVMLError(result, "Failed to get fan speed");
-        gpuInfos[i].fanSpeed = static_cast<float>(fanSpeed);
+        if (result == NVML_SUCCESS) {
+            gpuInfos[i].fanSpeed = static_cast<float>(fanSpeed);
+        } else {
+            gpuInfos[i].fanSpeed = -1.0f; // Indicate unavailable
+        }
 
         nvmlUtilization_t utilization;
         result = nvmlDeviceGetUtilizationRates(device, &utilization);
-        checkNVMLError(result, "Failed to get utilization");
-        gpuInfos[i].gpuUtilization = static_cast<float>(utilization.gpu);
-        gpuInfos[i].memoryUtilization = static_cast<float>(utilization.memory);
+        if (result == NVML_SUCCESS) {
+            gpuInfos[i].gpuUtilization = static_cast<float>(utilization.gpu);
+            gpuInfos[i].memoryUtilization = static_cast<float>(utilization.memory);
+        } else {
+            gpuInfos[i].gpuUtilization = -1.0f; // Indicate unavailable
+            gpuInfos[i].memoryUtilization = -1.0f; // Indicate unavailable
+        }
     }
+    
+    // Add a small delay to allow time for utilization to be reported
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 std::vector<GPUInfo> GPUMonitor::getGPUInfo() const {

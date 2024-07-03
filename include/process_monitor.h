@@ -1,8 +1,9 @@
 #pragma once
 
-#include <string>
 #include <vector>
-#include <filesystem>
+#include <string>
+#include <chrono>
+#include <proc/readproc.h>
 
 struct ProcessInfo {
     int pid;
@@ -11,26 +12,21 @@ struct ProcessInfo {
     double memoryUsage;
     long long diskRead;
     long long diskWrite;
-
-    bool operator==(const ProcessInfo& other) const {
-        return pid == other.pid &&
-               name == other.name &&
-               cpuUsage == other.cpuUsage &&
-               memoryUsage == other.memoryUsage &&
-               diskRead == other.diskRead &&
-               diskWrite == other.diskWrite;
-    }
+    double overallUsage;
 };
-
 
 class ProcessMonitor {
 public:
     ProcessMonitor();
+    ~ProcessMonitor();
     void update();
     std::vector<ProcessInfo> getProcesses() const;
 
 private:
     std::vector<ProcessInfo> processes;
-    ProcessInfo getProcessInfo(const std::filesystem::path& procPath);
-    double calculateCpuUsage(int pid, unsigned long long& prevCpuTime, unsigned long long& prevSysTime);
+    std::chrono::steady_clock::time_point lastUpdateTime;
+    PROCTAB* proc;
+
+    ProcessInfo getProcessInfo(proc_t* proc_info);
+    double calculateCpuUsage(unsigned long long lastCpuTime, unsigned long long currentCpuTime);
 };

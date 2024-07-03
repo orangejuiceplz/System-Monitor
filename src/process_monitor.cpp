@@ -1,49 +1,66 @@
 #include "../include/process_monitor.h"
+#include <algorithm>
+#include <sys/sysinfo.h>
+#include <unistd.h>
+#include <iostream>
 #include <fstream>
 #include <sstream>
-#include <chrono>
-#include <thread>
-#include <algorithm>
-#include <iterator>
-#include <unordered_map>
-#include <unistd.h> 
+#include <cstring>
 
-ProcessMonitor::ProcessMonitor() {}
+ProcessMonitor::ProcessMonitor() : proc(nullptr) {
+    lastUpdateTime = std::chrono::steady_clock::now();
+}
+
+ProcessMonitor::~ProcessMonitor() {
+    if (proc) {
+        closeproc(proc);
+    }
+}
 
 void ProcessMonitor::update() {
     processes.clear();
-    for (const auto& entry : std::filesystem::directory_iterator("/proc")) {
-        if (entry.is_directory() && std::all_of(entry.path().filename().string().begin(), 
-                                                entry.path().filename().string().end(), 
-                                                ::isdigit)) {
-            processes.push_back(getProcessInfo(entry.path()));
-        }
+
+    if (!proc) {
+        proc = openproc(PROC_FILLMEM | PROC_FILLSTAT | PROC_FILLSTATUS);
     }
+
+    if (!proc) {
+        throw std::runtime_error("Failed to open proc");
+    }
+
+    proc_t proc_info;
+    memset(&proc_info, 0, sizeof(proc_info));
+
+    while (readproc(proc, &proc_info) != nullptr) {
+        processes.push_back(getProcessInfo(&proc_info));
+        memset(&proc_info, 0, sizeof(proc_info));
+    }
+
+    std::sort(processes.begin(), processes.end(),
+              [](const ProcessInfo& a, const ProcessInfo& b) { return a.overallUsage > b.overallUsage; });
+
+    auto currentTime = std::chrono::steady_clock::now();
+    lastUpdateTime = currentTime;
 }
 
 std::vector<ProcessInfo> ProcessMonitor::getProcesses() const {
     return processes;
 }
 
-ProcessInfo ProcessMonitor::getProcessInfo(const std::filesystem::path& procPath) {
+ProcessInfo ProcessMonitor::getProcessInfo(proc_t* proc_info) {
     ProcessInfo info;
-    info.pid = std::stoi(procPath.filename().string());
-
-    std::ifstream commFile(procPath / "comm");
-    std::getline(commFile, info.name);
-
-    static std::unordered_map<int, std::pair<unsigned long long, unsigned long long>> prevTimes;
-    unsigned long long cpuTime, sysTime;
-    info.cpuUsage = calculateCpuUsage(info.pid, cpuTime, sysTime);
-    prevTimes[info.pid] = {cpuTime, sysTime};
-
-    std::ifstream statmFile(procPath / "statm");
-    long long vmSize, rss;
-    statmFile >> vmSize >> rss;
-    long pageSize = sysconf(_SC_PAGE_SIZE);
-    info.memoryUsage = static_cast<double>(rss * pageSize) / (1024 * 1024); 
-
-    std::ifstream ioFile(procPath / "io");
+    info.pid = proc_info->tid;
+    info.name = proc_info->cmd;
+    
+    unsigned long long totalTime = proc_info->utime + proc_info->stime;
+    auto currentTime = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed = currentTime - lastUpdateTime;
+    
+    info.cpuUsage = calculateCpuUsage(0, totalTime) / elapsed.count();
+    info.memoryUsage = (proc_info->resident * sysconf(_SC_PAGESIZE)) / (1024.0 * 1024.0); // Convert to MB
+    
+    // Read disk I/O information from /proc/<pid>/io
+    std::ifstream ioFile("/proc/" + std::to_string(info.pid) + "/io");
     std::string line;
     while (std::getline(ioFile, line)) {
         std::istringstream iss(line);
@@ -55,30 +72,14 @@ ProcessInfo ProcessMonitor::getProcessInfo(const std::filesystem::path& procPath
         }
     }
 
+    // Calculate overall usage (you can adjust weights as needed)
+    info.overallUsage = 0.4 * info.cpuUsage + 0.4 * info.memoryUsage + 
+                        0.2 * ((info.diskRead + info.diskWrite) / (1024.0 * 1024.0)); // Convert to MB
+
     return info;
 }
 
-double ProcessMonitor::calculateCpuUsage(int pid, unsigned long long& cpuTime, unsigned long long& sysTime) {
-    std::ifstream statFile("/proc/" + std::to_string(pid) + "/stat");
-    std::string line;
-    std::getline(statFile, line);
-    std::istringstream iss(line);
-
-    std::vector<std::string> tokens{std::istream_iterator<std::string>(iss),
-                                    std::istream_iterator<std::string>()};
-
-    cpuTime = std::stoull(tokens[13]) + std::stoull(tokens[14]);
-    sysTime = std::stoull(tokens[21]);
-
-    static std::unordered_map<int, std::pair<unsigned long long, unsigned long long>> prevTimes;
-    auto it = prevTimes.find(pid);
-    if (it != prevTimes.end()) {
-        auto [prevCpuTime, prevSysTime] = it->second;
-        auto cpuDelta = cpuTime - prevCpuTime;
-        auto sysDelta = sysTime - prevSysTime;
-        double cpuUsage = 100.0 * cpuDelta / (cpuDelta + sysDelta);
-        return cpuUsage;
-    }
-
-    return 0.0;
+double ProcessMonitor::calculateCpuUsage(unsigned long long lastCpuTime, unsigned long long currentCpuTime) {
+    unsigned long long cpuTimeDiff = currentCpuTime - lastCpuTime;
+    return (cpuTimeDiff / sysconf(_SC_CLK_TCK)) * 100.0;
 }

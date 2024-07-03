@@ -6,6 +6,7 @@
                 "${workspaceFolder}/**",
                 "/opt/cuda/targets/x86_64-linux/include",
                 "/usr/include"
+                
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
