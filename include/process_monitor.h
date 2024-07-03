@@ -4,6 +4,8 @@
 #include <vector>
 #include <filesystem>
 
+// In process_monitor.h
+
 struct ProcessInfo {
     int pid;
     std::string name;
@@ -11,7 +13,18 @@ struct ProcessInfo {
     double memoryUsage;
     long long diskRead;
     long long diskWrite;
+
+    // Add this equality operator
+    bool operator==(const ProcessInfo& other) const {
+        return pid == other.pid &&
+               name == other.name &&
+               cpuUsage == other.cpuUsage &&
+               memoryUsage == other.memoryUsage &&
+               diskRead == other.diskRead &&
+               diskWrite == other.diskWrite;
+    }
 };
+
 
 class ProcessMonitor {
 public:

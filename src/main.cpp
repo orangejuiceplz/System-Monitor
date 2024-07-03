@@ -7,15 +7,34 @@ int main() {
     SystemMonitor monitor;
     Display display;
 
-    while (true) {
-        monitor.update();
-        display.update(monitor);
+    int ch;
+    bool need_update = true;
 
-        if (!display.handleInput()) {
-            break;  // Exit the loop if 'q' is pressed
+    while (true) {
+        if (need_update) {
+            monitor.update();
+            display.update(monitor);
+            need_update = false;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        ch = getch();
+        if (ch == 'q' || ch == 'Q') {
+            break;
+        } else if (ch != ERR) {
+            // Some input was received, update on next iteration
+            need_update = true;
+        } else {
+            // No input, sleep for a short time
+            napms(100);  // Sleep for 100 milliseconds
+        }
+
+        // Update every second regardless of input
+        static auto last_update = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - last_update).count() >= 1) {
+            need_update = true;
+            last_update = now;
+        }
     }
 
     return 0;

@@ -13,4 +13,5 @@ public:
 
 private:
     void initializeScreen();
+    WINDOW* window;  
 };
