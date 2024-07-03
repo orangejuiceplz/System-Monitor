@@ -2,6 +2,8 @@
 
 #include "system_monitor.h"
 #include <ncurses.h>
+#include <vector>
+#include <string>
 
 class Display {
 public:
@@ -11,8 +13,15 @@ public:
     void update(const SystemMonitor& monitor);
     bool handleInput();
     void showAlert(const std::string& message);
+    void addLogMessage(const std::string& message);
+
 private:
     void initializeScreen();
-    WINDOW* window;  
-    WINDOW* alertWindow;
+    void updateMainWindow(const SystemMonitor& monitor);
+    void updateLogWindow();
+
+    WINDOW* mainWindow;
+    WINDOW* logWindow;
+    std::vector<std::string> logMessages;
+    static const size_t MAX_LOG_MESSAGES = 10;
 };

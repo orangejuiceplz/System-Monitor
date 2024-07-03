@@ -1,13 +1,17 @@
+// src/system_monitor.cpp
 #include "../include/system_monitor.h"
+#include "../include/display.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <thread>
 #include <chrono>
 #include <numeric>
+#include <algorithm>
 
-SystemMonitor::SystemMonitor(const Config& config, std::shared_ptr<Logger> logger)
-    : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), config(config), logger(logger) {}
+SystemMonitor::SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display)
+    : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), 
+      config(config), logger(logger), display(display) {}
 
 void SystemMonitor::update() {
     cpuUsage = calculateCpuUsage();
@@ -16,9 +20,25 @@ void SystemMonitor::update() {
     processMonitor.update();
     checkAlerts();
 
-    logger->log(LogLevel::INFO, "System update: CPU=" + std::to_string(cpuUsage) + 
-                "%, Memory=" + std::to_string(memoryUsage) + 
-                "%, Disk=" + std::to_string(diskUsage) + "%");
+    std::string logMessage = "System update: CPU=" + std::to_string(cpuUsage) + 
+                             "%, Memory=" + std::to_string(memoryUsage) + 
+                             "%, Disk=" + std::to_string(diskUsage) + "%";
+    logger->log(LogLevel::INFO, logMessage);
+    display.addLogMessage(logMessage);
+
+    auto processes = processMonitor.getProcesses();
+    std::sort(processes.begin(), processes.end(), 
+              [](const ProcessInfo& a, const ProcessInfo& b) { return a.cpuUsage > b.cpuUsage; });
+
+    for (size_t i = 0; i < std::min<size_t>(5, processes.size()); ++i) {
+        const auto& p = processes[i];
+        std::string processLog = "Top Process " + std::to_string(i+1) + ": " + p.name + 
+                                 " (PID: " + std::to_string(p.pid) + ") CPU: " + 
+                                 std::to_string(p.cpuUsage) + "%, Mem: " + 
+                                 std::to_string(p.memoryUsage) + " MB";
+        logger->log(LogLevel::INFO, processLog);
+        display.addLogMessage(processLog);
+    }
 }
 
 double SystemMonitor::getCpuUsage() const {
@@ -112,9 +132,11 @@ void SystemMonitor::checkAlerts() {
                      diskUsage > config.getDiskThreshold();
 
     if (alertTriggered) {
-        logger->log(LogLevel::WARNING, "Alert triggered: CPU=" + std::to_string(cpuUsage) + 
-                    "%, Memory=" + std::to_string(memoryUsage) + 
-                    "%, Disk=" + std::to_string(diskUsage) + "%");
+        std::string alertMessage = "Alert triggered: CPU=" + std::to_string(cpuUsage) + 
+                                   "%, Memory=" + std::to_string(memoryUsage) + 
+                                   "%, Disk=" + std::to_string(diskUsage) + "%";
+        logger->log(LogLevel::WARNING, alertMessage);
+        display.addLogMessage(alertMessage);
     }
 }
 

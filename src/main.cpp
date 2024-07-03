@@ -1,4 +1,3 @@
-// src/main.cpp
 #include "../include/system_monitor.h"
 #include "../include/display.h"
 #include "../include/config.h"
@@ -17,10 +16,11 @@ int main() {
     auto logger = std::make_shared<Logger>("system_monitor.log");
     logger->setLogLevel(LogLevel::INFO);
 
-    SystemMonitor monitor(config, logger);
     Display display;
+    SystemMonitor monitor(config, logger, display);
 
     logger->log(LogLevel::INFO, "System Monitor started");
+    display.addLogMessage("System Monitor started");
 
     int ch;
     bool need_update = true;
@@ -35,6 +35,7 @@ int main() {
         ch = getch();
         if (ch == 'q' || ch == 'Q') {
             logger->log(LogLevel::INFO, "System Monitor stopped");
+            display.addLogMessage("System Monitor stopped");
             break;
         } else if (ch != ERR) {
             need_update = true;
@@ -50,7 +51,7 @@ int main() {
         }
 
         if (monitor.isAlertTriggered()) {
-            display.showAlert("Alert: System threshold exceeded!");
+            display.showAlert("System threshold exceeded!");
         }   
     }
 

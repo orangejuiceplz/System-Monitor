@@ -1,4 +1,3 @@
-// include/system_monitor.h
 #pragma once
 
 #include "process_monitor.h"
@@ -10,9 +9,11 @@
 #include <filesystem>
 #include <memory>
 
+class Display;
+
 class SystemMonitor {
 public:
-    SystemMonitor(const Config& config, std::shared_ptr<Logger> logger);
+    SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display);
     void update();
     [[nodiscard]] double getCpuUsage() const;
     [[nodiscard]] double getMemoryUsage() const;
@@ -29,6 +30,7 @@ private:
     const Config& config;
     ProcessMonitor processMonitor;
     std::shared_ptr<Logger> logger;
+    Display& display;
 
     [[nodiscard]] double calculateCpuUsage();
     [[nodiscard]] double calculateMemoryUsage();
