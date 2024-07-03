@@ -1,13 +1,24 @@
+#include <dlfcn.h>
+#include <iostream>
 #include "../include/system_monitor.h"
 #include "../include/display.h"
 #include "../include/config.h"
 #include "../include/logger.h"
 #include <chrono>
 #include <thread>
-#include <iostream>
 #include <memory>
 
 int main() {
+    void* nvml_handle = dlopen("libnvidia-ml.so", RTLD_LAZY);
+    bool nvml_available = true;
+    if (!nvml_handle) {
+        std::cerr << "Warning: Failed to load NVML library: " << dlerror() << std::endl;
+        std::cerr << "GPU monitoring will be disabled." << std::endl;
+        nvml_available = false;
+    } else {
+        dlclose(nvml_handle);
+    }
+
     Config config;
     if (!config.load("system_monitor.conf")) {
         std::cout << "Failed to load configuration. Using default values.\n";
@@ -17,7 +28,7 @@ int main() {
     logger->setLogLevel(LogLevel::INFO);
 
     Display display;
-    SystemMonitor monitor(config, logger, display);
+    SystemMonitor monitor(config, logger, display, nvml_available);
 
     if (!monitor.initialize()) {
         std::cerr << "Failed to initialize system monitor" << std::endl;

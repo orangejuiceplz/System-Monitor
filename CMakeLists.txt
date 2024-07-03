@@ -40,6 +40,7 @@ target_link_libraries(system_monitor
     stdc++fs
     ${NVML_LIBRARY}
     ${CUDA_RUNTIME_LIBRARY}
+    dl
 )
 
 # Add compiler warnings

@@ -20,7 +20,10 @@ bool GPUMonitor::initialize() {
     std::cout << "NVML initialized successfully." << std::endl;
 
     result = nvmlDeviceGetCount(&deviceCount);
-    checkNVMLError(result, "Failed to get device count");
+    if (result != NVML_SUCCESS) {
+        std::cerr << "Failed to get device count: " << nvmlErrorString(result) << std::endl;
+        return false;
+    }
     std::cout << "Found " << deviceCount << " GPU(s)." << std::endl;
 
     gpuInfos.resize(deviceCount);

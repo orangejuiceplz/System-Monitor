@@ -14,7 +14,7 @@ class Display;
 
 class SystemMonitor {
 public:
-    SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display);
+    SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display, bool nvml_available);
     bool initialize();
     void update();
     [[nodiscard]] double getCpuUsage() const;
@@ -23,12 +23,14 @@ public:
     [[nodiscard]] std::vector<ProcessInfo> getProcesses() const;
     [[nodiscard]] std::vector<GPUInfo> getGPUInfo() const;
     [[nodiscard]] bool isAlertTriggered() const;
+    [[nodiscard]] bool isGPUMonitoringAvailable() const;
 
 private:
     double cpuUsage;
     double memoryUsage;
     double diskUsage;
     bool alertTriggered;
+    bool nvml_available;
 
     const Config& config;
     ProcessMonitor processMonitor;

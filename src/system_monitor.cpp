@@ -9,14 +9,26 @@
 #include <algorithm>
 #include <filesystem>
 
-SystemMonitor::SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display)
+SystemMonitor::SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display, bool nvml_available)
     : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), 
-      config(config), logger(logger), display(display) {}
+      nvml_available(nvml_available), config(config), logger(logger), display(display) {}
 
 bool SystemMonitor::initialize() {
-    if (!gpuMonitor.initialize()) {
-        logger->log(LogLevel::ERROR, "Failed to initialize GPU monitor");
-        return false;
+    if (nvml_available) {
+        try {
+            if (!gpuMonitor.initialize()) {
+                logger->log(LogLevel::ERROR, "Failed to initialize GPU monitor");
+                nvml_available = false;
+            }
+        } catch (const std::exception& e) {
+            logger->log(LogLevel::ERROR, "Exception during GPU monitor initialization: " + std::string(e.what()));
+            nvml_available = false;
+        } catch (...) {
+            logger->log(LogLevel::ERROR, "Unknown exception during GPU monitor initialization");
+            nvml_available = false;
+        }
+    } else {
+        logger->log(LogLevel::INFO, "GPU monitoring is disabled");
     }
     return true;
 }
@@ -26,7 +38,9 @@ void SystemMonitor::update() {
     memoryUsage = calculateMemoryUsage();
     diskUsage = calculateDiskUsage();
     processMonitor.update();
-    gpuMonitor.update();
+    if (nvml_available) {
+        gpuMonitor.update();
+    }
     checkAlerts();
 
     std::string logMessage = "System update: CPU=" + std::to_string(cpuUsage) + 
@@ -49,14 +63,16 @@ void SystemMonitor::update() {
         display.addLogMessage(processLog);
     }
 
-    auto gpuInfos = gpuMonitor.getGPUInfo();
-    for (const auto& gpu : gpuInfos) {
-        std::string gpuLog = "GPU " + std::to_string(gpu.index) + ": " + gpu.name +
-                             " Temp: " + std::to_string(gpu.temperature) + "C" +
-                             " Util: " + std::to_string(gpu.gpuUtilization) + "%" +
-                             " Mem: " + std::to_string(gpu.memoryUtilization) + "%";
-        logger->log(LogLevel::INFO, gpuLog);
-        display.addLogMessage(gpuLog);
+    if (nvml_available) {
+        auto gpuInfos = gpuMonitor.getGPUInfo();
+        for (const auto& gpu : gpuInfos) {
+            std::string gpuLog = "GPU " + std::to_string(gpu.index) + ": " + gpu.name +
+                                 " Temp: " + std::to_string(gpu.temperature) + "C" +
+                                 " Util: " + std::to_string(gpu.gpuUtilization) + "%" +
+                                 " Mem: " + std::to_string(gpu.memoryUtilization) + "%";
+            logger->log(LogLevel::INFO, gpuLog);
+            display.addLogMessage(gpuLog);
+        }
     }
 }
 
@@ -77,11 +93,18 @@ std::vector<ProcessInfo> SystemMonitor::getProcesses() const {
 }
 
 std::vector<GPUInfo> SystemMonitor::getGPUInfo() const {
-    return gpuMonitor.getGPUInfo();
+    if (nvml_available) {
+        return gpuMonitor.getGPUInfo();
+    }
+    return {};
 }
 
 bool SystemMonitor::isAlertTriggered() const {
     return alertTriggered;
+}
+
+bool SystemMonitor::isGPUMonitoringAvailable() const {
+    return nvml_available;
 }
 
 double SystemMonitor::calculateCpuUsage() {
@@ -161,6 +184,6 @@ void SystemMonitor::checkAlerts() {
                                    "%, Memory=" + std::to_string(memoryUsage) + 
                                    "%, Disk=" + std::to_string(diskUsage) + "%";
         logger->log(LogLevel::WARNING, alertMessage);
-        display.addLogMessage(alertMessage);
+        display.showAlert(alertMessage);
     }
 }
