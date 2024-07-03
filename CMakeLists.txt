@@ -15,6 +15,7 @@ add_executable(system_monitor
     src/process_monitor.cpp
     src/display.cpp
     src/config.cpp
+    src/logger.cpp
 )
 
 target_link_libraries(system_monitor 

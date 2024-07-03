@@ -1,9 +1,12 @@
+// src/main.cpp
 #include "../include/system_monitor.h"
 #include "../include/display.h"
 #include "../include/config.h"
+#include "../include/logger.h"
 #include <chrono>
 #include <thread>
 #include <iostream>
+#include <memory>
 
 int main() {
     Config config;
@@ -11,8 +14,13 @@ int main() {
         std::cout << "Failed to load configuration. Using default values.\n";
     }
 
-    SystemMonitor monitor(config);
+    auto logger = std::make_shared<Logger>("system_monitor.log");
+    logger->setLogLevel(LogLevel::INFO);
+
+    SystemMonitor monitor(config, logger);
     Display display;
+
+    logger->log(LogLevel::INFO, "System Monitor started");
 
     int ch;
     bool need_update = true;
@@ -26,6 +34,7 @@ int main() {
 
         ch = getch();
         if (ch == 'q' || ch == 'Q') {
+            logger->log(LogLevel::INFO, "System Monitor stopped");
             break;
         } else if (ch != ERR) {
             need_update = true;

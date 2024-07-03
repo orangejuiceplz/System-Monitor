@@ -6,8 +6,8 @@
 #include <chrono>
 #include <numeric>
 
-SystemMonitor::SystemMonitor(const Config& config)
-    : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), config(config) {}
+SystemMonitor::SystemMonitor(const Config& config, std::shared_ptr<Logger> logger)
+    : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), config(config), logger(logger) {}
 
 void SystemMonitor::update() {
     cpuUsage = calculateCpuUsage();
@@ -15,6 +15,10 @@ void SystemMonitor::update() {
     diskUsage = calculateDiskUsage();
     processMonitor.update();
     checkAlerts();
+
+    logger->log(LogLevel::INFO, "System update: CPU=" + std::to_string(cpuUsage) + 
+                "%, Memory=" + std::to_string(memoryUsage) + 
+                "%, Disk=" + std::to_string(diskUsage) + "%");
 }
 
 double SystemMonitor::getCpuUsage() const {
@@ -106,6 +110,12 @@ void SystemMonitor::checkAlerts() {
     alertTriggered = cpuUsage > config.getCpuThreshold() ||
                      memoryUsage > config.getMemoryThreshold() ||
                      diskUsage > config.getDiskThreshold();
+
+    if (alertTriggered) {
+        logger->log(LogLevel::WARNING, "Alert triggered: CPU=" + std::to_string(cpuUsage) + 
+                    "%, Memory=" + std::to_string(memoryUsage) + 
+                    "%, Disk=" + std::to_string(diskUsage) + "%");
+    }
 }
 
 bool SystemMonitor::isAlertTriggered() const {
