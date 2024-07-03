@@ -9,6 +9,7 @@ include_directories(include)
 add_executable(system_monitor
     src/main.cpp
     src/system_monitor.cpp
+    src/process_monitor.cpp
 )
 
 target_link_libraries(system_monitor stdc++fs)

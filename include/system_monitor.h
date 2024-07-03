@@ -1,5 +1,6 @@
 #pragma once
 
+#include "process_monitor.h"
 #include <string>
 #include <vector>
 #include <optional>
@@ -12,6 +13,7 @@ public:
     [[nodiscard]] double getCpuUsage() const;
     [[nodiscard]] double getMemoryUsage() const;
     [[nodiscard]] double getDiskUsage() const;
+    [[nodiscard]] std::vector<ProcessInfo> getProcesses() const;
 
 private:
     double cpuUsage;
@@ -22,4 +24,6 @@ private:
     [[nodiscard]] double calculateMemoryUsage();
     [[nodiscard]] double calculateDiskUsage();
     [[nodiscard]] std::optional<std::vector<long long>> getSystemStats();
+
+    ProcessMonitor processMonitor;
 };

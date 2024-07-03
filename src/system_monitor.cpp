@@ -12,7 +12,9 @@ void SystemMonitor::update() {
     cpuUsage = calculateCpuUsage();
     memoryUsage = calculateMemoryUsage();
     diskUsage = calculateDiskUsage();
+    processMonitor.update();
 }
+
 
 double SystemMonitor::getCpuUsage() const {
     return cpuUsage;
@@ -93,4 +95,8 @@ std::optional<std::vector<long long>> SystemMonitor::getSystemStats() {
         }
     }
     return std::nullopt;
+}
+
+std::vector<ProcessInfo> SystemMonitor::getProcesses() const {
+    return processMonitor.getProcesses();
 }
