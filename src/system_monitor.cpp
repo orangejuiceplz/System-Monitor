@@ -6,15 +6,16 @@
 #include <chrono>
 #include <numeric>
 
-SystemMonitor::SystemMonitor() : cpuUsage(0), memoryUsage(0), diskUsage(0) {}
+SystemMonitor::SystemMonitor(const Config& config)
+    : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), config(config) {}
 
 void SystemMonitor::update() {
     cpuUsage = calculateCpuUsage();
     memoryUsage = calculateMemoryUsage();
     diskUsage = calculateDiskUsage();
     processMonitor.update();
+    checkAlerts();
 }
-
 
 double SystemMonitor::getCpuUsage() const {
     return cpuUsage;
@@ -99,4 +100,14 @@ std::optional<std::vector<long long>> SystemMonitor::getSystemStats() {
 
 std::vector<ProcessInfo> SystemMonitor::getProcesses() const {
     return processMonitor.getProcesses();
+}
+
+void SystemMonitor::checkAlerts() {
+    alertTriggered = cpuUsage > config.getCpuThreshold() ||
+                     memoryUsage > config.getMemoryThreshold() ||
+                     diskUsage > config.getDiskThreshold();
+}
+
+bool SystemMonitor::isAlertTriggered() const {
+    return alertTriggered;
 }

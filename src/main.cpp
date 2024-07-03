@@ -1,10 +1,17 @@
 #include "../include/system_monitor.h"
 #include "../include/display.h"
+#include "../include/config.h"
 #include <chrono>
 #include <thread>
+#include <iostream>
 
 int main() {
-    SystemMonitor monitor;
+    Config config;
+    if (!config.load("system_monitor.conf")) {
+        std::cout << "Failed to load configuration. Using default values.\n";
+    }
+
+    SystemMonitor monitor(config);
     Display display;
 
     int ch;
@@ -21,20 +28,21 @@ int main() {
         if (ch == 'q' || ch == 'Q') {
             break;
         } else if (ch != ERR) {
-            // Some input was received, update on next iteration
             need_update = true;
         } else {
-            // No input, sleep for a short time
-            napms(100);  // Sleep for 100 milliseconds
+            napms(100);
         }
 
-        // Update every second regardless of input
         static auto last_update = std::chrono::steady_clock::now();
         auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::seconds>(now - last_update).count() >= 1) {
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - last_update).count() >= config.getUpdateInterval()) {
             need_update = true;
             last_update = now;
         }
+
+        if (monitor.isAlertTriggered()) {
+            display.showAlert("Alert: System threshold exceeded!");
+        }   
     }
 
     return 0;

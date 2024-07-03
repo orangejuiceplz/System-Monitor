@@ -26,7 +26,6 @@ void Display::initializeScreen() {
     nodelay(window, TRUE);
     curs_set(0);
 
-    // Check for color support
     if (has_colors() == FALSE) {
         endwin();
         throw std::runtime_error("Your terminal does not support color");
@@ -35,13 +34,11 @@ void Display::initializeScreen() {
     start_color();
     use_default_colors();
 
-    // Print color information
     mvwprintw(window, 0, 0, "Terminal has %d colors", COLORS);
     mvwprintw(window, 1, 0, "Terminal has %d color pairs", COLOR_PAIRS);
     wrefresh(window);
-    napms(2000);  // Pause for 2 seconds to show the color information
+    napms(2000);  
 
-    // Initialize color pairs if colors are supported
     if (COLORS >= 8) {
         init_pair(1, COLOR_CYAN, COLOR_BLACK);
         init_pair(2, COLOR_GREEN, COLOR_BLACK);
@@ -53,10 +50,8 @@ void Display::update(const SystemMonitor& monitor) {
     int yMax, xMax;
     getmaxyx(window, yMax, xMax);
 
-    // Draw border
     box(window, 0, 0);
 
-    // Title
     if (COLORS >= 8) {
         wattron(window, COLOR_PAIR(1) | A_BOLD);
     } else {
@@ -69,12 +64,10 @@ void Display::update(const SystemMonitor& monitor) {
         wattroff(window, A_BOLD);
     }
 
-    // System info
     mvwprintw(window, 3, 2, "CPU Usage:    %.2f%%", monitor.getCpuUsage());
     mvwprintw(window, 4, 2, "Memory Usage: %.2f%%", monitor.getMemoryUsage());
     mvwprintw(window, 5, 2, "Disk Usage:   %.2f%%", monitor.getDiskUsage());
 
-    // Process list
     mvwprintw(window, 7, 2, "Top 5 Processes by CPU Usage:");
     auto processes = monitor.getProcesses();
     std::sort(processes.begin(), processes.end(), 
@@ -86,7 +79,6 @@ void Display::update(const SystemMonitor& monitor) {
                  p.name.c_str(), p.pid, p.cpuUsage, p.memoryUsage);
     }
 
-    // Instructions
     if (COLORS >= 8) {
         wattron(window, COLOR_PAIR(2));
     } else {
@@ -105,4 +97,30 @@ void Display::update(const SystemMonitor& monitor) {
 bool Display::handleInput() {
     int ch = wgetch(window);
     return (ch != 'q' && ch != 'Q');
+}
+
+void Display::showAlert(const std::string& message) {
+    int yMax, xMax;
+    getmaxyx(window, yMax, xMax);
+
+    int height = 3;
+    int width = message.length() + 4;
+    int startY = (yMax - height) / 2;
+    int startX = (xMax - width) / 2;
+
+    alertWindow = newwin(height, width, startY, startX);
+    box(alertWindow, 0, 0);
+
+    mvwprintw(alertWindow, 1, 2, message.c_str());
+    wrefresh(alertWindow);
+
+    wgetch(alertWindow);
+
+    wclear(alertWindow);
+    wrefresh(alertWindow);
+    delwin(alertWindow);
+    alertWindow = nullptr;
+
+    touchwin(window);
+    wrefresh(window);
 }

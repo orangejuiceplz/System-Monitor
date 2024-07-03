@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <iterator>
 #include <unordered_map>
-#include <unistd.h> // For sysconf
+#include <unistd.h> 
 
 ProcessMonitor::ProcessMonitor() {}
 
@@ -29,24 +29,20 @@ ProcessInfo ProcessMonitor::getProcessInfo(const std::filesystem::path& procPath
     ProcessInfo info;
     info.pid = std::stoi(procPath.filename().string());
 
-    // Read process name
     std::ifstream commFile(procPath / "comm");
     std::getline(commFile, info.name);
 
-    // Read CPU usage
     static std::unordered_map<int, std::pair<unsigned long long, unsigned long long>> prevTimes;
     unsigned long long cpuTime, sysTime;
     info.cpuUsage = calculateCpuUsage(info.pid, cpuTime, sysTime);
     prevTimes[info.pid] = {cpuTime, sysTime};
 
-    // Read memory usage
     std::ifstream statmFile(procPath / "statm");
     long long vmSize, rss;
     statmFile >> vmSize >> rss;
     long pageSize = sysconf(_SC_PAGE_SIZE);
-    info.memoryUsage = static_cast<double>(rss * pageSize) / (1024 * 1024); // Convert to MB
+    info.memoryUsage = static_cast<double>(rss * pageSize) / (1024 * 1024); 
 
-    // Read disk I/O
     std::ifstream ioFile(procPath / "io");
     std::string line;
     while (std::getline(ioFile, line)) {
