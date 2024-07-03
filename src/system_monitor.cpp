@@ -1,4 +1,3 @@
-// src/system_monitor.cpp
 #include "../include/system_monitor.h"
 #include "../include/display.h"
 #include <fstream>
@@ -8,16 +7,26 @@
 #include <chrono>
 #include <numeric>
 #include <algorithm>
+#include <filesystem>
 
 SystemMonitor::SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display)
     : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), 
       config(config), logger(logger), display(display) {}
+
+bool SystemMonitor::initialize() {
+    if (!gpuMonitor.initialize()) {
+        logger->log(LogLevel::ERROR, "Failed to initialize GPU monitor");
+        return false;
+    }
+    return true;
+}
 
 void SystemMonitor::update() {
     cpuUsage = calculateCpuUsage();
     memoryUsage = calculateMemoryUsage();
     diskUsage = calculateDiskUsage();
     processMonitor.update();
+    gpuMonitor.update();
     checkAlerts();
 
     std::string logMessage = "System update: CPU=" + std::to_string(cpuUsage) + 
@@ -39,6 +48,16 @@ void SystemMonitor::update() {
         logger->log(LogLevel::INFO, processLog);
         display.addLogMessage(processLog);
     }
+
+    auto gpuInfos = gpuMonitor.getGPUInfo();
+    for (const auto& gpu : gpuInfos) {
+        std::string gpuLog = "GPU " + std::to_string(gpu.index) + ": " + gpu.name +
+                             " Temp: " + std::to_string(gpu.temperature) + "C" +
+                             " Util: " + std::to_string(gpu.gpuUtilization) + "%" +
+                             " Mem: " + std::to_string(gpu.memoryUtilization) + "%";
+        logger->log(LogLevel::INFO, gpuLog);
+        display.addLogMessage(gpuLog);
+    }
 }
 
 double SystemMonitor::getCpuUsage() const {
@@ -51,6 +70,18 @@ double SystemMonitor::getMemoryUsage() const {
 
 double SystemMonitor::getDiskUsage() const {
     return diskUsage;
+}
+
+std::vector<ProcessInfo> SystemMonitor::getProcesses() const {
+    return processMonitor.getProcesses();
+}
+
+std::vector<GPUInfo> SystemMonitor::getGPUInfo() const {
+    return gpuMonitor.getGPUInfo();
+}
+
+bool SystemMonitor::isAlertTriggered() const {
+    return alertTriggered;
 }
 
 double SystemMonitor::calculateCpuUsage() {
@@ -98,9 +129,7 @@ double SystemMonitor::calculateMemoryUsage() {
 }
 
 double SystemMonitor::calculateDiskUsage() {
-    static const auto rootPath = std::filesystem::path("/");
-    auto space = std::filesystem::space(rootPath);
-    
+    auto space = std::filesystem::space("/");
     auto totalSpace = space.capacity;
     auto freeSpace = space.free;
     auto usedSpace = totalSpace - freeSpace;
@@ -122,10 +151,6 @@ std::optional<std::vector<long long>> SystemMonitor::getSystemStats() {
     return std::nullopt;
 }
 
-std::vector<ProcessInfo> SystemMonitor::getProcesses() const {
-    return processMonitor.getProcesses();
-}
-
 void SystemMonitor::checkAlerts() {
     alertTriggered = cpuUsage > config.getCpuThreshold() ||
                      memoryUsage > config.getMemoryThreshold() ||
@@ -138,8 +163,4 @@ void SystemMonitor::checkAlerts() {
         logger->log(LogLevel::WARNING, alertMessage);
         display.addLogMessage(alertMessage);
     }
-}
-
-bool SystemMonitor::isAlertTriggered() const {
-    return alertTriggered;
 }

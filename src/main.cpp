@@ -19,6 +19,11 @@ int main() {
     Display display;
     SystemMonitor monitor(config, logger, display);
 
+    if (!monitor.initialize()) {
+        std::cerr << "Failed to initialize system monitor" << std::endl;
+        return 1;
+    }
+
     logger->log(LogLevel::INFO, "System Monitor started");
     display.addLogMessage("System Monitor started");
 

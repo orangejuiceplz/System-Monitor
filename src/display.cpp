@@ -1,3 +1,4 @@
+// src/display.cpp
 #include "../include/display.h"
 #include <iomanip>
 #include <sstream>
@@ -51,6 +52,7 @@ void Display::initializeScreen() {
 
 void Display::update(const SystemMonitor& monitor) {
     updateMainWindow(monitor);
+    updateGPUInfo(monitor.getGPUInfo());
     updateLogWindow();
 }
 
@@ -77,12 +79,16 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     mvwprintw(mainWindow, 4, 2, "Memory Usage: %.2f%%", monitor.getMemoryUsage());
     mvwprintw(mainWindow, 5, 2, "Disk Usage:   %.2f%%", monitor.getDiskUsage());
 
-    mvwprintw(mainWindow, 7, 2, "Top 5 Processes by CPU Usage:");
+    // Adjust the number of processes shown based on available space
+    int availableLines = yMax - 15; // Reserve space for GPU info
+    int processesToShow = std::min(5, availableLines);
+
+    mvwprintw(mainWindow, 7, 2, "Top %d Processes by CPU Usage:", processesToShow);
     auto processes = monitor.getProcesses();
     std::sort(processes.begin(), processes.end(), 
               [](const ProcessInfo& a, const ProcessInfo& b) { return a.cpuUsage > b.cpuUsage; });
 
-    for (size_t i = 0; i < std::min<size_t>(5, processes.size()); ++i) {
+    for (int i = 0; i < processesToShow && i < static_cast<int>(processes.size()); ++i) {
         const auto& p = processes[i];
         mvwprintw(mainWindow, 9 + i, 2, "%-20s (PID: %5d): CPU %.2f%%, Mem %.2f MB", 
                  p.name.c_str(), p.pid, p.cpuUsage, p.memoryUsage);
@@ -101,6 +107,18 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     }
 
     wrefresh(mainWindow);
+}
+
+void Display::updateGPUInfo(const std::vector<GPUInfo>& gpuInfos) {
+    int startY = 15; 
+    for (const auto& gpu : gpuInfos) {
+        mvwprintw(mainWindow, startY++, 2, "GPU %d: %s", gpu.index, gpu.name.c_str());
+        mvwprintw(mainWindow, startY++, 4, "Temp: %.1f°C, Util: %.1f%%, Mem: %.1f%%", 
+                  gpu.temperature, gpu.gpuUtilization, gpu.memoryUtilization);
+        mvwprintw(mainWindow, startY++, 4, "Power: %.1fW, Fan: %.1f%%", 
+                  gpu.powerUsage, gpu.fanSpeed);
+        startY++; 
+    }
 }
 
 void Display::updateLogWindow() {
