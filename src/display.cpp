@@ -3,17 +3,14 @@
 #include <sstream>
 #include <algorithm>
 
-Display::Display() : mainWindow(nullptr), logWindow(nullptr) {
+Display::Display() : mainWindow(nullptr), logWindow(nullptr), processListPad(nullptr), processListScrollPosition(0) {
     initializeScreen();
 }
 
 Display::~Display() {
-    if (mainWindow) {
-        delwin(mainWindow);
-    }
-    if (logWindow) {
-        delwin(logWindow);
-    }
+    if (mainWindow) delwin(mainWindow);
+    if (logWindow) delwin(logWindow);
+    if (processListPad) delwin(processListPad);
     endwin();
 }
 
@@ -52,6 +49,8 @@ void Display::initializeScreen() {
 void Display::update(const SystemMonitor& monitor) {
     updateMainWindow(monitor);
     updateLogWindow();
+    updateProcessList(monitor.getProcesses());
+    displayProcessList();
 }
 
 void Display::updateMainWindow(const SystemMonitor& monitor) {
@@ -77,8 +76,25 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     mvwprintw(mainWindow, 4, 2, "Memory Usage: %.2f%%", monitor.getMemoryUsage());
     mvwprintw(mainWindow, 5, 2, "Disk Usage:   %.2f%%", monitor.getDiskUsage());
 
+    updateGPUInfo(monitor.getGPUInfo());
+
+    if (COLORS >= 8) {
+        wattron(mainWindow, COLOR_PAIR(2));
+    } else {
+        wattron(mainWindow, A_UNDERLINE);
+    }
+    mvwprintw(mainWindow, yMax - 2, 2, "Press 'q' to quit, Up/Down to scroll");
+    if (COLORS >= 8) {
+        wattroff(mainWindow, COLOR_PAIR(2));
+    } else {
+        wattroff(mainWindow, A_UNDERLINE);
+    }
+
+    wrefresh(mainWindow);
+}
+
+void Display::updateGPUInfo(const std::vector<GPUInfo>& gpuInfos) {
     int startY = 7;
-    auto gpuInfos = monitor.getGPUInfo();
     if (gpuInfos.empty()) {
         mvwprintw(mainWindow, startY++, 2, "GPU: Not available");
     } else {
@@ -102,35 +118,12 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
             } else {
                 mvwprintw(mainWindow, startY, 41, "N/A");
             }
+            if (gpu.fanSpeed >= 0) {
+                mvwprintw(mainWindow, startY, 51, "Fan: %.1f%%", gpu.fanSpeed);
+            }
             startY += 2;
         }
     }
-
-    mvwprintw(mainWindow, startY++, 2, "Top 5 Processes by Resource Usage:");
-    auto processes = monitor.getProcesses();
-    if (processes.empty()) {
-        mvwprintw(mainWindow, startY++, 2, "No processes found");
-    } else {
-        for (int i = 0; i < 5 && i < static_cast<int>(processes.size()); ++i) {
-            const auto& p = processes[i];
-            mvwprintw(mainWindow, startY + i, 2, "%-20s (PID: %5d): CPU %.1f%%, Mem %.1f MB, Overall %.1f%%", 
-                     p.name.c_str(), p.pid, p.cpuUsage, p.memoryUsage, p.overallUsage);
-        }
-    }
-
-    if (COLORS >= 8) {
-        wattron(mainWindow, COLOR_PAIR(2));
-    } else {
-        wattron(mainWindow, A_UNDERLINE);
-    }
-    mvwprintw(mainWindow, yMax - 2, 2, "Press 'q' to quit");
-    if (COLORS >= 8) {
-        wattroff(mainWindow, COLOR_PAIR(2));
-    } else {
-        wattroff(mainWindow, A_UNDERLINE);
-    }
-
-    wrefresh(mainWindow);
 }
 
 void Display::updateLogWindow() {
@@ -157,9 +150,44 @@ void Display::updateLogWindow() {
     wrefresh(logWindow);
 }
 
+void Display::updateProcessList(const std::vector<ProcessInfo>& processes) {
+    if (processListPad == nullptr) {
+        processListPad = newpad(processes.size() + 1, COLS - 2);
+    } else {
+        wresize(processListPad, processes.size() + 1, COLS - 2);
+    }
+
+    wclear(processListPad);
+
+    for (size_t i = 0; i < processes.size(); ++i) {
+        const auto& p = processes[i];
+        mvwprintw(processListPad, i, 0, "%-20s (PID: %5d): CPU %.1f%%, Mem %.1f MB, Overall %.1f%%", 
+                  p.name.c_str(), p.pid, p.cpuUsage, p.memoryUsage, p.overallUsage);
+    }
+}
+
+void Display::displayProcessList() {
+    int yMax, xMax;
+    getmaxyx(mainWindow, yMax, xMax);
+    int listHeight = yMax - 12; // Adjust based on your layout
+
+    prefresh(processListPad, processListScrollPosition, 0, 10, 2, yMax - 2, xMax - 2);
+}
+
 bool Display::handleInput() {
     int ch = wgetch(mainWindow);
-    return (ch != 'q' && ch != 'Q');
+    switch (ch) {
+        case KEY_UP:
+            if (processListScrollPosition > 0) processListScrollPosition--;
+            break;
+        case KEY_DOWN:
+            processListScrollPosition++;
+            break;
+        case 'q':
+        case 'Q':
+            return false;
+    }
+    return true;
 }
 
 void Display::showAlert(const std::string& message) {

@@ -33,3 +33,8 @@ std::string Logger::getTimestamp() {
     ss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
     return ss.str();
 }
+
+void Logger::logInfo(const std::string& message) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    logFile << getTimestamp() << " [INFO] " << message << std::endl;
+}

@@ -19,10 +19,14 @@ private:
     void initializeScreen();
     void updateMainWindow(const SystemMonitor& monitor);
     void updateLogWindow();
-    void updateGPUInfo(const std::vector<GPUInfo>& gpuInfos);  
+    void updateGPUInfo(const std::vector<GPUInfo>& gpuInfos);
+    void updateProcessList(const std::vector<ProcessInfo>& processes);
+    void displayProcessList();
 
     WINDOW* mainWindow;
     WINDOW* logWindow;
+    WINDOW* processListPad;
+    int processListScrollPosition;
     std::vector<std::string> logMessages;
     static const size_t MAX_LOG_MESSAGES = 10;
 };
