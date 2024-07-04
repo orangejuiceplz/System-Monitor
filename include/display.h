@@ -19,7 +19,7 @@ private:
     void initializeScreen();
     void updateMainWindow(const SystemMonitor& monitor);
     void updateLogWindow();
-    void updateGPUInfo(const std::vector<GPUInfo>& gpuInfos);  // Add this line
+    void updateGPUInfo(const std::vector<GPUInfo>& gpuInfos);  
 
     WINDOW* mainWindow;
     WINDOW* logWindow;

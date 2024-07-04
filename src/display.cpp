@@ -77,7 +77,6 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     mvwprintw(mainWindow, 4, 2, "Memory Usage: %.2f%%", monitor.getMemoryUsage());
     mvwprintw(mainWindow, 5, 2, "Disk Usage:   %.2f%%", monitor.getDiskUsage());
 
-    // Add GPU information
     int startY = 7;
     auto gpuInfos = monitor.getGPUInfo();
     if (gpuInfos.empty()) {
@@ -107,7 +106,6 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
         }
     }
 
-    // Top 5 processes by overall resource usage
     mvwprintw(mainWindow, startY++, 2, "Top 5 Processes by Resource Usage:");
     auto processes = monitor.getProcesses();
     if (processes.empty()) {

@@ -13,7 +13,7 @@ ProcessMonitor::ProcessMonitor() {
 }
 
 ProcessMonitor::~ProcessMonitor() {
-    // Empty destructor
+    // destructor
 }
 
 void ProcessMonitor::update() {
@@ -36,7 +36,7 @@ void ProcessMonitor::update() {
                     processes.push_back(readProcessInfoFromProc(pid));
                     count++;
                 } catch (const std::exception& e) {
-                    // Silently ignore errors for individual processes
+                    // ignoring error silently
                 }
             }
         }
@@ -65,7 +65,7 @@ ProcessInfo ProcessMonitor::readProcessInfoFromProc(int pid) {
     info.pid = pid;
 
     try {
-        // Read process name
+
         std::ifstream cmdline("/proc/" + std::to_string(pid) + "/cmdline");
         std::getline(cmdline, info.name, '\0');
         if (info.name.empty()) {
@@ -73,7 +73,7 @@ ProcessInfo ProcessMonitor::readProcessInfoFromProc(int pid) {
             std::getline(comm, info.name);
         }
 
-        // Read CPU usage
+        
         std::ifstream stat("/proc/" + std::to_string(pid) + "/stat");
         std::string line;
         std::getline(stat, line);
@@ -88,19 +88,18 @@ ProcessInfo ProcessMonitor::readProcessInfoFromProc(int pid) {
         std::chrono::duration<double> elapsed = currentTime - lastUpdateTime;
         double totalCpuTime = sysconf(_SC_CLK_TCK) * elapsed.count();
         
-        // Get the number of logical processors
+        
         long numProcessors = sysconf(_SC_NPROCESSORS_ONLN);
         
-        // Calculate CPU usage as a percentage of one core
+
         info.cpuUsage = (totalCpuTime > 0) ? ((totalTime / totalCpuTime) * 100.0) / numProcessors : 0.0;
 
-        // Read memory usage
+
         std::ifstream statm("/proc/" + std::to_string(pid) + "/statm");
         unsigned long resident;
         statm >> unused >> resident;
-        info.memoryUsage = (resident * sysconf(_SC_PAGESIZE)) / (1024.0 * 1024.0); // Convert to MB
-
-        // Read disk I/O
+        info.memoryUsage = (resident * sysconf(_SC_PAGESIZE)) / (1024.0 * 1024.0); 
+ 
         std::ifstream io("/proc/" + std::to_string(pid) + "/io");
         while (std::getline(io, line)) {
             std::istringstream iss(line);
@@ -112,9 +111,9 @@ ProcessInfo ProcessMonitor::readProcessInfoFromProc(int pid) {
             }
         }
 
-        // Calculate overall usage (you can adjust weights as needed)
+
         info.overallUsage = 0.4 * info.cpuUsage + 0.4 * info.memoryUsage + 
-                            0.2 * ((info.diskRead + info.diskWrite) / (1024.0 * 1024.0)); // Convert to MB
+                            0.2 * ((info.diskRead + info.diskWrite) / (1024.0 * 1024.0)); 
     } catch (const std::exception& e) {
         std::cerr << "Error reading info for PID " << pid << ": " << e.what() << std::endl;
     }

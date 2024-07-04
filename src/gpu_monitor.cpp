@@ -47,15 +47,15 @@ void GPUMonitor::update() {
         if (result == NVML_SUCCESS) {
             gpuInfos[i].temperature = static_cast<float>(temperature);
         } else {
-            gpuInfos[i].temperature = -1.0f; // Indicate unavailable
+            gpuInfos[i].temperature = -1.0f;
         }
 
         unsigned int power;
         result = nvmlDeviceGetPowerUsage(device, &power);
         if (result == NVML_SUCCESS) {
-            gpuInfos[i].powerUsage = static_cast<float>(power) / 1000.0f; // Convert to Watts
+            gpuInfos[i].powerUsage = static_cast<float>(power) / 1000.0f;
         } else {
-            gpuInfos[i].powerUsage = -1.0f; // Indicate unavailable
+            gpuInfos[i].powerUsage = -1.0f; 
         }
 
         unsigned int fanSpeed;
@@ -63,7 +63,7 @@ void GPUMonitor::update() {
         if (result == NVML_SUCCESS) {
             gpuInfos[i].fanSpeed = static_cast<float>(fanSpeed);
         } else {
-            gpuInfos[i].fanSpeed = -1.0f; // Indicate unavailable
+            gpuInfos[i].fanSpeed = -1.0f;
         }
 
         nvmlUtilization_t utilization;
@@ -72,12 +72,11 @@ void GPUMonitor::update() {
             gpuInfos[i].gpuUtilization = static_cast<float>(utilization.gpu);
             gpuInfos[i].memoryUtilization = static_cast<float>(utilization.memory);
         } else {
-            gpuInfos[i].gpuUtilization = -1.0f; // Indicate unavailable
-            gpuInfos[i].memoryUtilization = -1.0f; // Indicate unavailable
+            gpuInfos[i].gpuUtilization = -1.0f; 
+            gpuInfos[i].memoryUtilization = -1.0f; 
         }
     }
     
-    // Add a small delay to allow time for utilization to be reported
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
