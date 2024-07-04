@@ -1,3 +1,8 @@
+> [!WARNING]
+> there are active issues, for example if you input like anything cpu numbers rise drastically and is VERY not representative (e.g 500%, what??) i'll fix this within the next 100 commits or something.
+> also, utilization and memory usage is not exactly working well for nvidia. resource usage overall is very weird anyway.
+> i will be transforming this into an actual application soon
+
 # System-Monitor 🖥️
 
 ```
