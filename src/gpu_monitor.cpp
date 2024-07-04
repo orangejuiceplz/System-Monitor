@@ -47,6 +47,7 @@ void GPUMonitor::update() {
         if (result == NVML_SUCCESS) {
             gpuInfos[i].temperature = static_cast<float>(temperature);
         } else {
+            std::cerr << "Failed to get GPU temperature: " << nvmlErrorString(result) << std::endl;
             gpuInfos[i].temperature = -1.0f;
         }
 
@@ -55,7 +56,8 @@ void GPUMonitor::update() {
         if (result == NVML_SUCCESS) {
             gpuInfos[i].powerUsage = static_cast<float>(power) / 1000.0f;
         } else {
-            gpuInfos[i].powerUsage = -1.0f; 
+            std::cerr << "Failed to get GPU power usage: " << nvmlErrorString(result) << std::endl;
+            gpuInfos[i].powerUsage = -1.0f;
         }
 
         unsigned int fanSpeed;
@@ -63,6 +65,7 @@ void GPUMonitor::update() {
         if (result == NVML_SUCCESS) {
             gpuInfos[i].fanSpeed = static_cast<float>(fanSpeed);
         } else {
+            std::cerr << "Failed to get GPU fan speed: " << nvmlErrorString(result) << std::endl;
             gpuInfos[i].fanSpeed = -1.0f;
         }
 
@@ -72,8 +75,18 @@ void GPUMonitor::update() {
             gpuInfos[i].gpuUtilization = static_cast<float>(utilization.gpu);
             gpuInfos[i].memoryUtilization = static_cast<float>(utilization.memory);
         } else {
-            gpuInfos[i].gpuUtilization = -1.0f; 
-            gpuInfos[i].memoryUtilization = -1.0f; 
+            std::cerr << "Failed to get GPU utilization: " << nvmlErrorString(result) << std::endl;
+            gpuInfos[i].gpuUtilization = -1.0f;
+            gpuInfos[i].memoryUtilization = -1.0f;
+        }
+
+        nvmlMemory_t memInfo;
+        result = nvmlDeviceGetMemoryInfo(device, &memInfo);
+        if (result == NVML_SUCCESS) {
+            gpuInfos[i].memoryUtilization = static_cast<float>(memInfo.used) / static_cast<float>(memInfo.total) * 100.0f;
+        } else {
+            std::cerr << "Failed to get GPU memory info: " << nvmlErrorString(result) << std::endl;
+            gpuInfos[i].memoryUtilization = -1.0f;
         }
     }
     

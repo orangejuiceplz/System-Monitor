@@ -7,6 +7,8 @@
 #include <fstream>
 #include <sstream>
 #include <cstring>
+#include <map>
+#include <filesystem>
 
 ProcessMonitor::ProcessMonitor() {
     lastUpdateTime = std::chrono::steady_clock::now();
@@ -17,7 +19,11 @@ ProcessMonitor::~ProcessMonitor() {
 }
 
 void ProcessMonitor::update() {
-    processes.clear();
+    auto currentTime = std::chrono::steady_clock::now();
+    double elapsedSeconds = std::chrono::duration<double>(currentTime - lastUpdateTime).count();
+    
+    std::vector<ProcessInfo> newProcesses;
+    static std::map<int, unsigned long long> lastTotalTimes;
 
     DIR* proc_dir = opendir("/proc");
     if (proc_dir == nullptr) {
@@ -25,7 +31,6 @@ void ProcessMonitor::update() {
         return;
     }
 
-    int count = 0;
     struct dirent* entry;
     while ((entry = readdir(proc_dir)) != nullptr) {
         if (entry->d_type == DT_DIR) {
@@ -33,10 +38,11 @@ void ProcessMonitor::update() {
             if (std::all_of(filename.begin(), filename.end(), ::isdigit)) {
                 int pid = std::stoi(filename);
                 try {
-                    processes.push_back(readProcessInfoFromProc(pid));
-                    count++;
+                    ProcessInfo info = readProcessInfoFromProc(pid);
+                    info.cpuUsage = calculateCPUUsage(pid);
+                    newProcesses.push_back(info);
                 } catch (const std::exception& e) {
-                    // ignoring error silently
+                    // Ignore errors silently
                 }
             }
         }
@@ -44,15 +50,18 @@ void ProcessMonitor::update() {
 
     closedir(proc_dir);
 
-    if (processes.empty()) {
-        std::cerr << "No processes found. This is unexpected." << std::endl;
-        std::cerr << "Current user ID: " << getuid() << ", effective user ID: " << geteuid() << std::endl;
-    } else {
-        std::sort(processes.begin(), processes.end(),
-                  [](const ProcessInfo& a, const ProcessInfo& b) { return a.overallUsage > b.overallUsage; });
+    double totalSystemMemory = getTotalSystemMemory();
+
+    for (auto& process : newProcesses) {
+        double cpuPercentage = process.cpuUsage / sysconf(_SC_NPROCESSORS_ONLN);
+        double memoryPercentage = (totalSystemMemory > 0) ? (process.memoryUsage / totalSystemMemory) * 100.0 : 0.0;
+        process.overallUsage = (cpuPercentage + memoryPercentage) / 2.0;
     }
 
-    auto currentTime = std::chrono::steady_clock::now();
+    std::sort(newProcesses.begin(), newProcesses.end(),
+              [](const ProcessInfo& a, const ProcessInfo& b) { return a.overallUsage > b.overallUsage; });
+
+    processes = std::move(newProcesses);
     lastUpdateTime = currentTime;
 }
 
@@ -65,58 +74,130 @@ ProcessInfo ProcessMonitor::readProcessInfoFromProc(int pid) {
     info.pid = pid;
 
     try {
-
-        std::ifstream cmdline("/proc/" + std::to_string(pid) + "/cmdline");
-        std::getline(cmdline, info.name, '\0');
-        if (info.name.empty()) {
-            std::ifstream comm("/proc/" + std::to_string(pid) + "/comm");
-            std::getline(comm, info.name);
+        // Read process name
+        std::string comm;
+        {
+            std::ifstream comm_file("/proc/" + std::to_string(pid) + "/comm");
+            std::getline(comm_file, comm);
+        }
+        
+        if (!comm.empty()) {
+            info.name = comm;
+        } else {
+            std::string cmdline;
+            {
+                std::ifstream cmdline_file("/proc/" + std::to_string(pid) + "/cmdline");
+                std::getline(cmdline_file, cmdline, '\0');
+            }
+            
+            if (!cmdline.empty()) {
+                std::filesystem::path p(cmdline.substr(0, cmdline.find(' ')));
+                info.name = p.filename().string();
+            } else {
+                info.name = "unknown";
+            }
         }
 
-        
-        std::ifstream stat("/proc/" + std::to_string(pid) + "/stat");
+        // Remove non-printable characters and truncate if necessary
+        info.name.erase(std::remove_if(info.name.begin(), info.name.end(), 
+                                       [](unsigned char c) { return !std::isprint(c); }),
+                        info.name.end());
+        if (info.name.length() > MAX_NAME_LENGTH) {
+            info.name = info.name.substr(0, TRUNCATE_LENGTH) + "...";
+        }
+
+        // Read memory usage
+        unsigned long long vm_size, vm_rss;
+        {
+            std::ifstream statm_file("/proc/" + std::to_string(pid) + "/statm");
+            statm_file >> vm_size >> vm_rss;
+        }
+        info.memoryUsage = (vm_rss * sysconf(_SC_PAGESIZE)) / (1024.0 * 1024.0); // Convert to MB
+
+        // Read disk I/O
+        {
+            std::ifstream io_file("/proc/" + std::to_string(pid) + "/io");
+            std::string line;
+            while (std::getline(io_file, line)) {
+                std::istringstream iss(line);
+                std::string key;
+                long long value;
+                if (iss >> key >> value) {
+                    if (key == "read_bytes:") info.diskRead = value;
+                    else if (key == "write_bytes:") info.diskWrite = value;
+                }
+            }
+        }
+
+        // Calculate CPU usage
+        info.cpuUsage = calculateCPUUsage(pid);
+
+        // Calculate overall usage
+        info.overallUsage = CPU_WEIGHT * info.cpuUsage + 
+                            MEMORY_WEIGHT * info.memoryUsage + 
+                            DISK_WEIGHT * ((info.diskRead + info.diskWrite) / (1024.0 * 1024.0));
+
+    } catch (const std::exception& e) {
+        std::cerr << "Error reading info for PID " << pid << ": " << e.what() << std::endl;
+        info.name = "error";
+        info.memoryUsage = 0;
+        info.diskRead = 0;
+        info.diskWrite = 0;
+        info.cpuUsage = 0;
+        info.overallUsage = 0;
+    }
+
+    return info;
+}
+
+double ProcessMonitor::getTotalSystemMemory() {
+    std::ifstream meminfo("/proc/meminfo");
+    std::string line;
+    while (std::getline(meminfo, line)) {
+        if (line.compare(0, 9, "MemTotal:") == 0) {
+            long long memTotal;
+            std::istringstream iss(line);
+            std::string dummy;
+            iss >> dummy >> memTotal;
+            return memTotal * 1024.0; // Convert KB to Bytes
+        }
+    }
+    return 0.0;
+}
+
+double ProcessMonitor::calculateCPUUsage(int pid) {
+    static std::map<int, std::pair<unsigned long long, std::chrono::steady_clock::time_point>> lastValues;
+
+    try {
+        std::ifstream stat_file("/proc/" + std::to_string(pid) + "/stat");
         std::string line;
-        std::getline(stat, line);
+        std::getline(stat_file, line);
         std::istringstream iss(line);
+
         std::string unused;
         unsigned long long utime, stime;
         for (int i = 1; i <= 13; ++i) iss >> unused;
         iss >> utime >> stime;
-        unsigned long long totalTime = utime + stime;
-        
-        auto currentTime = std::chrono::steady_clock::now();
-        std::chrono::duration<double> elapsed = currentTime - lastUpdateTime;
-        double totalCpuTime = sysconf(_SC_CLK_TCK) * elapsed.count();
-        
-        
-        long numProcessors = sysconf(_SC_NPROCESSORS_ONLN);
-        
 
-        info.cpuUsage = (totalCpuTime > 0) ? ((totalTime / totalCpuTime) * 100.0) / numProcessors : 0.0;
+        unsigned long long total_time = utime + stime;
+        auto current_time = std::chrono::steady_clock::now();
 
-
-        std::ifstream statm("/proc/" + std::to_string(pid) + "/statm");
-        unsigned long resident;
-        statm >> unused >> resident;
-        info.memoryUsage = (resident * sysconf(_SC_PAGESIZE)) / (1024.0 * 1024.0); 
- 
-        std::ifstream io("/proc/" + std::to_string(pid) + "/io");
-        while (std::getline(io, line)) {
-            std::istringstream iss(line);
-            std::string key;
-            long long value;
-            if (iss >> key >> value) {
-                if (key == "read_bytes:") info.diskRead = value;
-                else if (key == "write_bytes:") info.diskWrite = value;
+        double cpu_usage = 0.0;
+        if (lastValues.find(pid) != lastValues.end()) {
+            const auto& [last_total_time, last_time] = lastValues[pid];
+            auto time_diff = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_time).count();
+            
+            if (time_diff > 0) {
+                unsigned long long time_diff_total = total_time - last_total_time;
+                cpu_usage = (time_diff_total * 1000.0 / (sysconf(_SC_CLK_TCK) * time_diff)) * 100.0;
             }
         }
 
+        lastValues[pid] = {total_time, current_time};
+        return cpu_usage;
 
-        info.overallUsage = 0.4 * info.cpuUsage + 0.4 * info.memoryUsage + 
-                            0.2 * ((info.diskRead + info.diskWrite) / (1024.0 * 1024.0)); 
     } catch (const std::exception& e) {
-        std::cerr << "Error reading info for PID " << pid << ": " << e.what() << std::endl;
+        std::cerr << "Error calculating CPU usage for PID " << pid << ": " << e.what() << std::endl;
+        return 0.0;
     }
-
-    return info;
 }

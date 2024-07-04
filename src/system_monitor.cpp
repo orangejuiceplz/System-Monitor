@@ -76,29 +76,38 @@ bool SystemMonitor::isGPUMonitoringAvailable() const {
 }
 
 double SystemMonitor::calculateCpuUsage() {
-    static auto lastStats = getSystemStats();
-    auto currentStats = getSystemStats();
+    static unsigned long long lastTotalUser = 0, lastTotalUserLow = 0, lastTotalSys = 0, lastTotalIdle = 0;
 
-    if (!lastStats || !currentStats || lastStats->size() < 4 || currentStats->size() < 4) {
+    std::ifstream statFile("/proc/stat");
+    std::string line;
+    std::getline(statFile, line);
+    std::istringstream ss(line);
+
+    std::string cpu;
+    unsigned long long totalUser, totalUserLow, totalSys, totalIdle, totalIOwait, totalIRQ, totalSoftIRQ;
+
+    ss >> cpu >> totalUser >> totalUserLow >> totalSys >> totalIdle >> totalIOwait >> totalIRQ >> totalSoftIRQ;
+
+    if (lastTotalUser == 0) {
+        // First call, just set the last values
+        lastTotalUser = totalUser;
+        lastTotalUserLow = totalUserLow;
+        lastTotalSys = totalSys;
+        lastTotalIdle = totalIdle;
         return 0.0;
     }
 
-    auto lastIdle = (*lastStats)[3];
-    auto lastTotal = std::accumulate(lastStats->begin(), lastStats->end(), 0LL);
+    unsigned long long total = (totalUser - lastTotalUser) + (totalUserLow - lastTotalUserLow) +
+                               (totalSys - lastTotalSys);
+    total += (totalIdle - lastTotalIdle);
+    double percent = (total - (totalIdle - lastTotalIdle)) / static_cast<double>(total);
 
-    auto currentIdle = (*currentStats)[3];
-    auto currentTotal = std::accumulate(currentStats->begin(), currentStats->end(), 0LL);
+    lastTotalUser = totalUser;
+    lastTotalUserLow = totalUserLow;
+    lastTotalSys = totalSys;
+    lastTotalIdle = totalIdle;
 
-    auto idleDelta = currentIdle - lastIdle;
-    auto totalDelta = currentTotal - lastTotal;
-
-    lastStats = currentStats;
-
-    if (totalDelta == 0) {
-        return 0.0;
-    }
-
-    return 100.0 * (1.0 - static_cast<double>(idleDelta) / totalDelta);
+    return percent * 100.0;
 }
 
 double SystemMonitor::calculateMemoryUsage() {
