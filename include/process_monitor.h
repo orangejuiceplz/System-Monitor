@@ -3,7 +3,6 @@
 #include <vector>
 #include <string>
 #include <chrono>
-#include <proc/readproc.h>
 
 struct ProcessInfo {
     int pid;
@@ -25,8 +24,6 @@ public:
 private:
     std::vector<ProcessInfo> processes;
     std::chrono::steady_clock::time_point lastUpdateTime;
-    PROCTAB* proc;
 
-    ProcessInfo getProcessInfo(proc_t* proc_info);
-    double calculateCpuUsage(unsigned long long lastCpuTime, unsigned long long currentCpuTime);
+    ProcessInfo readProcessInfoFromProc(int pid);
 };

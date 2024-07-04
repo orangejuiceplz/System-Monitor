@@ -159,12 +159,17 @@ double SystemMonitor::calculateMemoryUsage() {
 }
 
 double SystemMonitor::calculateDiskUsage() {
-    auto space = std::filesystem::space("/");
-    auto totalSpace = space.capacity;
-    auto freeSpace = space.free;
-    auto usedSpace = totalSpace - freeSpace;
+    try {
+        auto space = std::filesystem::space("/");
+        auto totalSpace = space.capacity;
+        auto freeSpace = space.free;
+        auto usedSpace = totalSpace - freeSpace;
 
-    return 100.0 * static_cast<double>(usedSpace) / totalSpace;
+        return 100.0 * static_cast<double>(usedSpace) / totalSpace;
+    } catch (const std::filesystem::filesystem_error& e) {
+        logger->log(LogLevel::ERROR, "Error calculating disk usage: " + std::string(e.what()));
+        return 0.0;
+    }
 }
 
 std::optional<std::vector<long long>> SystemMonitor::getSystemStats() {
