@@ -19,18 +19,16 @@ bool SystemMonitor::initialize() {
     if (nvml_available) {
         try {
             if (!gpuMonitor.initialize()) {
-                logger->log(LogLevel::ERROR, "Failed to initialize GPU monitor");
+                logger->logError("Failed to initialize GPU monitor");
                 nvml_available = false;
             }
         } catch (const std::exception& e) {
-            logger->log(LogLevel::ERROR, "Exception during GPU monitor initialization: " + std::string(e.what()));
+            logger->logError("Exception during GPU monitor initialization: " + std::string(e.what()));
             nvml_available = false;
         } catch (...) {
-            logger->log(LogLevel::ERROR, "Unknown exception during GPU monitor initialization");
+            logger->logError("Unknown exception during GPU monitor initialization");
             nvml_available = false;
         }
-    } else {
-        logger->log(LogLevel::INFO, "GPU monitoring is disabled");
     }
     return true;
 }
@@ -44,39 +42,6 @@ void SystemMonitor::update() {
         gpuMonitor.update();
     }
     checkAlerts();
-
-    std::string logMessage = "System update: CPU=" + std::to_string(cpuUsage) + 
-                             "%, Memory=" + std::to_string(memoryUsage) + 
-                             "%, Disk=" + std::to_string(diskUsage) + "%";
-    logger->log(LogLevel::INFO, logMessage);
-    display.addLogMessage(logMessage);
-
-    // Get and sort processes
-    auto processes = getProcesses();
-
-    // Log top 5 processes
-    for (size_t i = 0; i < std::min<size_t>(5, processes.size()); ++i) {
-        const auto& p = processes[i];
-        std::string processLog = "Top Process " + std::to_string(i+1) + ": " + p.name + 
-                                 " (PID: " + std::to_string(p.pid) + ") CPU: " + 
-                                 std::to_string(p.cpuUsage) + "%, Mem: " + 
-                                 std::to_string(p.memoryUsage) + " MB, Overall: " +
-                                 std::to_string(p.overallUsage) + "%";
-        logger->log(LogLevel::INFO, processLog);
-        display.addLogMessage(processLog);
-    }
-
-    if (nvml_available) {
-        auto gpuInfos = gpuMonitor.getGPUInfo();
-        for (const auto& gpu : gpuInfos) {
-            std::string gpuLog = "GPU " + std::to_string(gpu.index) + ": " + gpu.name +
-                                 " Temp: " + std::to_string(gpu.temperature) + "C" +
-                                 " Util: " + std::to_string(gpu.gpuUtilization) + "%" +
-                                 " Mem: " + std::to_string(gpu.memoryUtilization) + "%";
-            logger->log(LogLevel::INFO, gpuLog);
-            display.addLogMessage(gpuLog);
-        }
-    }
 }
 
 double SystemMonitor::getCpuUsage() const {
@@ -167,7 +132,7 @@ double SystemMonitor::calculateDiskUsage() {
 
         return 100.0 * static_cast<double>(usedSpace) / totalSpace;
     } catch (const std::filesystem::filesystem_error& e) {
-        logger->log(LogLevel::ERROR, "Error calculating disk usage: " + std::string(e.what()));
+        logger->logError("Error calculating disk usage: " + std::string(e.what()));
         return 0.0;
     }
 }
@@ -190,32 +155,32 @@ std::optional<std::vector<long long>> SystemMonitor::getSystemStats() {
 }
 
 void SystemMonitor::checkAlerts() {
-    alertTriggered = cpuUsage > config.getCpuThreshold() ||
-                     memoryUsage > config.getMemoryThreshold() ||
-                     diskUsage > config.getDiskThreshold();
+    bool cpuAlert = cpuUsage > config.getCpuThreshold();
+    bool memoryAlert = memoryUsage > config.getMemoryThreshold();
+    bool diskAlert = diskUsage > config.getDiskThreshold();
 
-    logger->log(LogLevel::DEBUG, "CPU Usage: " + std::to_string(cpuUsage) + "%, Threshold: " + std::to_string(config.getCpuThreshold()) + "%");
-    logger->log(LogLevel::DEBUG, "Memory Usage: " + std::to_string(memoryUsage) + "%, Threshold: " + std::to_string(config.getMemoryThreshold()) + "%");
-    logger->log(LogLevel::DEBUG, "Disk Usage: " + std::to_string(diskUsage) + "%, Threshold: " + std::to_string(config.getDiskThreshold()) + "%");
-
-    if (alertTriggered) {
-        std::string alertMessage = "Alert triggered: CPU=" + std::to_string(cpuUsage) + 
-                                   "%, Memory=" + std::to_string(memoryUsage) + 
-                                   "%, Disk=" + std::to_string(diskUsage) + "%";
-        logger->log(LogLevel::WARNING, alertMessage);
+    if (cpuAlert || memoryAlert || diskAlert) {
+        std::string alertMessage = "Alert triggered:";
+        if (cpuAlert) alertMessage += " CPU=" + std::to_string(cpuUsage) + "%";
+        if (memoryAlert) alertMessage += " Memory=" + std::to_string(memoryUsage) + "%";
+        if (diskAlert) alertMessage += " Disk=" + std::to_string(diskUsage) + "%";
+        
+        logger->logWarning(alertMessage);
         display.showAlert(alertMessage);
+        alertTriggered = true;
+    } else {
+        alertTriggered = false;
     }
 
     if (nvml_available) {
         auto gpuInfos = gpuMonitor.getGPUInfo();
         for (const auto& gpu : gpuInfos) {
-            logger->log(LogLevel::DEBUG, "GPU " + std::to_string(gpu.index) + " Temperature: " + std::to_string(gpu.temperature) + "°C, Threshold: " + std::to_string(GPU_TEMP_THRESHOLD) + "°C");
             if (gpu.temperature > GPU_TEMP_THRESHOLD) {
                 std::string gpuAlertMessage = "GPU " + std::to_string(gpu.index) + 
                                               " temperature alert: " + 
                                               std::to_string(gpu.temperature) + "°C (Threshold: " +
                                               std::to_string(GPU_TEMP_THRESHOLD) + "°C)";
-                logger->log(LogLevel::WARNING, gpuAlertMessage);
+                logger->logWarning(gpuAlertMessage);
                 display.showAlert(gpuAlertMessage);
                 alertTriggered = true;
             }

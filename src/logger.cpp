@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <sstream>
 
-Logger::Logger(const std::string& filename) : currentLevel(LogLevel::INFO) {
+Logger::Logger(const std::string& filename) {
     logFile.open(filename, std::ios::app);
     if (!logFile.is_open()) {
         throw std::runtime_error("Unable to open log file: " + filename);
@@ -16,15 +16,14 @@ Logger::~Logger() {
     }
 }
 
-void Logger::log(LogLevel level, const std::string& message) {
-    if (level >= currentLevel) {
-        std::lock_guard<std::mutex> lock(logMutex);
-        logFile << getTimestamp() << " [" << logLevelToString(level) << "] " << message << std::endl;
-    }
+void Logger::logWarning(const std::string& message) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    logFile << getTimestamp() << " [WARNING] " << message << std::endl;
 }
 
-void Logger::setLogLevel(LogLevel level) {
-    currentLevel = level;
+void Logger::logError(const std::string& message) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    logFile << getTimestamp() << " [ERROR] " << message << std::endl;
 }
 
 std::string Logger::getTimestamp() {
@@ -33,14 +32,4 @@ std::string Logger::getTimestamp() {
     std::stringstream ss;
     ss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
     return ss.str();
-}
-
-std::string Logger::logLevelToString(LogLevel level) {
-    switch (level) {
-        case LogLevel::DEBUG: return "DEBUG";
-        case LogLevel::INFO: return "INFO";
-        case LogLevel::WARNING: return "WARNING";
-        case LogLevel::ERROR: return "ERROR";
-        default: return "UNKNOWN";
-    }
 }

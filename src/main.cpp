@@ -25,7 +25,6 @@ int main() {
     }
 
     auto logger = std::make_shared<Logger>("system_monitor.log");
-    logger->setLogLevel(LogLevel::DEBUG);  // Set to DEBUG level for more detailed logs
 
     Display display;
     SystemMonitor monitor(config, logger, display, nvml_available);
@@ -35,7 +34,7 @@ int main() {
         return 1;
     }
 
-    logger->log(LogLevel::INFO, "System Monitor started");
+    logger->logWarning("System Monitor started");
     display.addLogMessage("System Monitor started");
 
     int ch;
@@ -51,7 +50,7 @@ int main() {
 
             ch = getch();
             if (ch == 'q' || ch == 'Q') {
-                logger->log(LogLevel::INFO, "System Monitor stopped");
+                logger->logWarning("System Monitor stopped");
                 display.addLogMessage("System Monitor stopped");
                 break;
             } else if (ch != ERR) {
@@ -72,7 +71,7 @@ int main() {
             }   
         }
     } catch (const std::exception& e) {
-        logger->log(LogLevel::ERROR, "Unexpected error: " + std::string(e.what()));
+        logger->logError("Unexpected error: " + std::string(e.what()));
         std::cerr << "An unexpected error occurred. Check the log file for details." << std::endl;
         return 1;
     }
