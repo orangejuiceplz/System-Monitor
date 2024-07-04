@@ -26,6 +26,8 @@ public:
     [[nodiscard]] bool isGPUMonitoringAvailable() const;
     void run();
 
+    static const float GPU_TEMP_THRESHOLD;
+
 private:
     double cpuUsage;
     double memoryUsage;

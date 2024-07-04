@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <filesystem>
 
+const float SystemMonitor::GPU_TEMP_THRESHOLD = 80.0f;
+
 SystemMonitor::SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display, bool nvml_available)
     : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), 
       nvml_available(nvml_available), config(config), logger(logger), display(display) {}
@@ -117,15 +119,19 @@ double SystemMonitor::calculateCpuUsage() {
     }
 
     auto lastIdle = (*lastStats)[3];
-    auto lastTotal = std::accumulate(lastStats->begin(), lastStats->begin() + 4, 0LL);
+    auto lastTotal = std::accumulate(lastStats->begin(), lastStats->end(), 0LL);
 
     auto currentIdle = (*currentStats)[3];
-    auto currentTotal = std::accumulate(currentStats->begin(), currentStats->begin() + 4, 0LL);
+    auto currentTotal = std::accumulate(currentStats->begin(), currentStats->end(), 0LL);
 
     auto idleDelta = currentIdle - lastIdle;
     auto totalDelta = currentTotal - lastTotal;
 
     lastStats = currentStats;
+
+    if (totalDelta == 0) {
+        return 0.0;
+    }
 
     return 100.0 * (1.0 - static_cast<double>(idleDelta) / totalDelta);
 }
@@ -167,10 +173,13 @@ std::optional<std::vector<long long>> SystemMonitor::getSystemStats() {
     if (std::getline(statFile, line)) {
         std::istringstream iss(line);
         std::string cpu;
-        long long user, nice, system, idle;
-        if (iss >> cpu >> user >> nice >> system >> idle) {
-            return std::vector<long long>{user, nice, system, idle};
+        std::vector<long long> stats;
+        long long value;
+        iss >> cpu;
+        while (iss >> value) {
+            stats.push_back(value);
         }
+        return stats;
     }
     return std::nullopt;
 }
@@ -195,11 +204,12 @@ void SystemMonitor::checkAlerts() {
     if (nvml_available) {
         auto gpuInfos = gpuMonitor.getGPUInfo();
         for (const auto& gpu : gpuInfos) {
-            logger->log(LogLevel::DEBUG, "GPU " + std::to_string(gpu.index) + " Temperature: " + std::to_string(gpu.temperature) + "°C, Threshold: " + std::to_string(config.getGpuTempThreshold()) + "°C");
-            if (gpu.temperature > config.getGpuTempThreshold()) {
+            logger->log(LogLevel::DEBUG, "GPU " + std::to_string(gpu.index) + " Temperature: " + std::to_string(gpu.temperature) + "°C, Threshold: " + std::to_string(GPU_TEMP_THRESHOLD) + "°C");
+            if (gpu.temperature > GPU_TEMP_THRESHOLD) {
                 std::string gpuAlertMessage = "GPU " + std::to_string(gpu.index) + 
                                               " temperature alert: " + 
-                                              std::to_string(gpu.temperature) + "°C";
+                                              std::to_string(gpu.temperature) + "°C (Threshold: " +
+                                              std::to_string(GPU_TEMP_THRESHOLD) + "°C)";
                 logger->log(LogLevel::WARNING, gpuAlertMessage);
                 display.showAlert(gpuAlertMessage);
                 alertTriggered = true;
@@ -208,11 +218,10 @@ void SystemMonitor::checkAlerts() {
     }
 }
 
-
 void SystemMonitor::run() {
     while (display.handleInput()) {
         update();
         display.update(*this);
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::seconds(config.getUpdateInterval()));
     }
 }

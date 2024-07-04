@@ -11,6 +11,7 @@ void Config::setDefaultValues() {
     settings["cpu_threshold"] = "80.0";
     settings["memory_threshold"] = "80.0";
     settings["disk_threshold"] = "90.0";
+    settings["gpu_temp_threshold"] = "80.0";
 }
 
 bool Config::load(const std::string& filename) {
@@ -73,6 +74,10 @@ double Config::getDiskThreshold() const {
     return getValue<double>("disk_threshold", 90.0);
 }
 
+double Config::getGpuTempThreshold() const {
+    return getValue<double>("gpu_temp_threshold", 80.0);
+}
+
 void Config::setUpdateInterval(int interval) {
     settings["update_interval"] = std::to_string(interval);
 }
@@ -87,4 +92,8 @@ void Config::setMemoryThreshold(double threshold) {
 
 void Config::setDiskThreshold(double threshold) {
     settings["disk_threshold"] = std::to_string(threshold);
+}
+
+void Config::setGpuTempThreshold(double threshold) {
+    settings["gpu_temp_threshold"] = std::to_string(threshold);
 }

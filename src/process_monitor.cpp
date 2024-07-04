@@ -63,7 +63,8 @@ ProcessInfo ProcessMonitor::getProcessInfo(proc_t* proc_info) {
     auto currentTime = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsed = currentTime - lastUpdateTime;
     
-    info.cpuUsage = calculateCpuUsage(0, totalTime) / elapsed.count();
+    double totalCpuTime = sysconf(_SC_CLK_TCK) * elapsed.count();
+    info.cpuUsage = (totalTime / totalCpuTime) * 100.0;
     info.memoryUsage = (proc_info->resident * sysconf(_SC_PAGESIZE)) / (1024.0 * 1024.0); // Convert to MB
     
     // Read disk I/O information from /proc/<pid>/io
@@ -80,6 +81,7 @@ ProcessInfo ProcessMonitor::getProcessInfo(proc_t* proc_info) {
     }
 
     // Calculate overall usage (you can adjust weights as needed)
+      // Calculate overall usage (you can adjust weights as needed)
     info.overallUsage = 0.4 * info.cpuUsage + 0.4 * info.memoryUsage + 
                         0.2 * ((info.diskRead + info.diskWrite) / (1024.0 * 1024.0)); // Convert to MB
 

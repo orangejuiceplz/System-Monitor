@@ -13,12 +13,13 @@ public:
     double getCpuThreshold() const;
     double getMemoryThreshold() const;
     double getDiskThreshold() const;
+    double getGpuTempThreshold() const;
 
     void setUpdateInterval(int interval);
     void setCpuThreshold(double threshold);
     void setMemoryThreshold(double threshold);
     void setDiskThreshold(double threshold);
-    double getGpuTempThreshold() const { return gpuTempThreshold; }
+    void setGpuTempThreshold(double threshold);
 
 private:
     std::unordered_map<std::string, std::string> settings;
@@ -26,5 +27,4 @@ private:
     void setDefaultValues();
     template<typename T>
     T getValue(const std::string& key, T defaultValue) const;
-    double gpuTempThreshold;
 };
