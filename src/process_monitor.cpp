@@ -19,8 +19,6 @@ ProcessMonitor::~ProcessMonitor() {
 void ProcessMonitor::update() {
     processes.clear();
 
-    std::cout << "Starting process update..." << std::endl;
-
     DIR* proc_dir = opendir("/proc");
     if (proc_dir == nullptr) {
         std::cerr << "Failed to open /proc directory: " << strerror(errno) << std::endl;
@@ -38,15 +36,13 @@ void ProcessMonitor::update() {
                     processes.push_back(readProcessInfoFromProc(pid));
                     count++;
                 } catch (const std::exception& e) {
-                    std::cerr << "Error processing PID " << pid << ": " << e.what() << std::endl;
+                    // Silently ignore errors for individual processes
                 }
             }
         }
     }
 
     closedir(proc_dir);
-
-    std::cout << "Finished reading processes. Count: " << count << std::endl;
 
     if (processes.empty()) {
         std::cerr << "No processes found. This is unexpected." << std::endl;
