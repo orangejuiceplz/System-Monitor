@@ -36,8 +36,15 @@ void ProcessMonitor::update() {
         memset(&proc_info, 0, sizeof(proc_info));
     }
 
-    std::sort(processes.begin(), processes.end(),
-              [](const ProcessInfo& a, const ProcessInfo& b) { return a.overallUsage > b.overallUsage; });
+    std::cout << "Found " << processes.size() << " processes" << std::endl;
+
+    if (processes.empty()) {
+        std::cerr << "No processes found. Check permissions and /proc filesystem access." << std::endl;
+    } else {
+        // Sort processes by overall usage
+        std::sort(processes.begin(), processes.end(),
+                  [](const ProcessInfo& a, const ProcessInfo& b) { return a.overallUsage > b.overallUsage; });
+    }
 
     auto currentTime = std::chrono::steady_clock::now();
     lastUpdateTime = currentTime;

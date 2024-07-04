@@ -180,6 +180,10 @@ void SystemMonitor::checkAlerts() {
                      memoryUsage > config.getMemoryThreshold() ||
                      diskUsage > config.getDiskThreshold();
 
+    logger->log(LogLevel::DEBUG, "CPU Usage: " + std::to_string(cpuUsage) + "%, Threshold: " + std::to_string(config.getCpuThreshold()) + "%");
+    logger->log(LogLevel::DEBUG, "Memory Usage: " + std::to_string(memoryUsage) + "%, Threshold: " + std::to_string(config.getMemoryThreshold()) + "%");
+    logger->log(LogLevel::DEBUG, "Disk Usage: " + std::to_string(diskUsage) + "%, Threshold: " + std::to_string(config.getDiskThreshold()) + "%");
+
     if (alertTriggered) {
         std::string alertMessage = "Alert triggered: CPU=" + std::to_string(cpuUsage) + 
                                    "%, Memory=" + std::to_string(memoryUsage) + 
@@ -191,6 +195,7 @@ void SystemMonitor::checkAlerts() {
     if (nvml_available) {
         auto gpuInfos = gpuMonitor.getGPUInfo();
         for (const auto& gpu : gpuInfos) {
+            logger->log(LogLevel::DEBUG, "GPU " + std::to_string(gpu.index) + " Temperature: " + std::to_string(gpu.temperature) + "°C, Threshold: " + std::to_string(config.getGpuTempThreshold()) + "°C");
             if (gpu.temperature > config.getGpuTempThreshold()) {
                 std::string gpuAlertMessage = "GPU " + std::to_string(gpu.index) + 
                                               " temperature alert: " + 
@@ -202,6 +207,7 @@ void SystemMonitor::checkAlerts() {
         }
     }
 }
+
 
 void SystemMonitor::run() {
     while (display.handleInput()) {

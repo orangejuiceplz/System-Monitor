@@ -25,7 +25,7 @@ int main() {
     }
 
     auto logger = std::make_shared<Logger>("system_monitor.log");
-    logger->setLogLevel(LogLevel::INFO);
+    logger->setLogLevel(LogLevel::DEBUG);  // Set to DEBUG level for more detailed logs
 
     Display display;
     SystemMonitor monitor(config, logger, display, nvml_available);
