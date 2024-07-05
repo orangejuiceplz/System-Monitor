@@ -74,6 +74,7 @@
         "variant": "cpp",
         "__nullptr": "cpp",
         "bitset": "cpp",
-        "expected": "cpp"
+        "expected": "cpp",
+        "shared_mutex": "cpp"
     }
 }
