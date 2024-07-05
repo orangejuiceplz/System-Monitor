@@ -86,7 +86,7 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     } else {
         wattron(mainWindow, A_UNDERLINE);
     }
-    mvwprintw(mainWindow, yMax - 2, 2, "Press 'q' to quit");
+    mvwprintw(mainWindow, yMax - 2, 2, "Press 'q' to quit, UP/DOWN to scroll processes");
     if (COLORS >= 8) {
         wattroff(mainWindow, COLOR_PAIR(2));
     } else {
@@ -158,7 +158,7 @@ void Display::updateProcessWindow(const std::vector<ProcessInfo>& processes) {
     } else {
         wattron(processWindow, A_BOLD);
     }
-    mvwprintw(processWindow, 0, 2, "Process List");
+    mvwprintw(processWindow, 0, 2, "Process List (Use UP/DOWN to scroll)");
     if (COLORS >= 8) {
         wattroff(processWindow, COLOR_PAIR(3) | A_BOLD);
     } else {
@@ -166,14 +166,21 @@ void Display::updateProcessWindow(const std::vector<ProcessInfo>& processes) {
     }
 
     int row = 1;
-    for (const auto& process : processes) {
-        if (row >= 11) break; 
+    for (size_t i = processListScrollPosition; i < processes.size() && row < PROCESS_WINDOW_HEIGHT; ++i) {
+        const auto& process = processes[i];
         mvwprintw(processWindow, row, 1, "%-20s CPU: %5.1f%% Mem: %5.1f MB",
                   process.name.c_str(), process.cpuUsage, process.memoryUsage);
         row++;
     }
 
     wrefresh(processWindow);
+}
+
+void Display::scrollProcessList(int direction) {
+    processListScrollPosition += direction;
+    if (processListScrollPosition < 0) {
+        processListScrollPosition = 0;
+    }
 }
 
 void Display::showAlert(const std::string& message) {
@@ -194,6 +201,12 @@ bool Display::handleInput() {
         case 'q':
         case 'Q':
             return false;
+        case KEY_UP:
+            scrollProcessList(-1);
+            return true;
+        case KEY_DOWN:
+            scrollProcessList(1);
+            return true;
         default:
             return true;
     }
