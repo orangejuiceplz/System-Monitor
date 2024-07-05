@@ -4,7 +4,8 @@
 #include <sstream>
 #include <algorithm>
 
-Display::Display() : mainWindow(nullptr), logWindow(nullptr), processWindow(nullptr), networkWindow(nullptr), processListScrollPosition(0), needsUpdate(false) {
+Display::Display() : mainWindow(nullptr), logWindow(nullptr), processWindow(nullptr), networkWindow(nullptr), 
+                     processListScrollPosition(0), needsUpdate(false), networkWindowWidth(30) {
     initializeScreen();
 }
 
@@ -41,10 +42,10 @@ void Display::initializeScreen() {
     int yMax, xMax;
     getmaxyx(stdscr, yMax, xMax);
 
-    mainWindow = newwin(yMax - 36, xMax, 0, 0);
-    processWindow = newwin(12, xMax, yMax - 36, 0);
-    networkWindow = newwin(12, xMax, yMax - 24, 0);
-    logWindow = newwin(12, xMax, yMax - 12, 0);
+    mainWindow = newwin(yMax - 24, xMax - networkWindowWidth, 0, 0);
+    processWindow = newwin(12, xMax - networkWindowWidth, yMax - 24, 0);
+    logWindow = newwin(12, xMax - networkWindowWidth, yMax - 12, 0);
+    networkWindow = newwin(yMax, networkWindowWidth, 0, xMax - networkWindowWidth);
 
     keypad(mainWindow, TRUE);
     keypad(logWindow, TRUE);
@@ -198,17 +199,34 @@ void Display::updateNetworkInfo(const std::vector<NetworkInterface>& interfaces)
     }
 
     int row = 1;
+    double totalDownloadSpeed = 0;
+    double totalUploadSpeed = 0;
+    unsigned long long totalBytesReceived = 0;
+    unsigned long long totalBytesSent = 0;
+
     for (const auto& interface : interfaces) {
-        mvwprintw(networkWindow, row++, 1, "Interface: %s (%s)", interface.name.c_str(), interface.type.c_str());
-        mvwprintw(networkWindow, row++, 1, "Download: %.2f MB/s (Max: %.2f MB/s)", 
-                  interface.downloadSpeed / (1024 * 1024), interface.maxDownloadSpeed / (1024 * 1024));
-        mvwprintw(networkWindow, row++, 1, "Upload: %.2f MB/s (Max: %.2f MB/s)", 
-                  interface.uploadSpeed / (1024 * 1024), interface.maxUploadSpeed / (1024 * 1024));
+        mvwprintw(networkWindow, row++, 1, "%s (%s)", interface.name.c_str(), interface.type.c_str());
+        mvwprintw(networkWindow, row++, 1, "Down: %.2f MB/s", interface.downloadSpeed / (1024 * 1024));
+        mvwprintw(networkWindow, row++, 1, "Up: %.2f MB/s", interface.uploadSpeed / (1024 * 1024));
+        mvwprintw(networkWindow, row++, 1, "Max Down: %.2f MB/s", interface.maxDownloadSpeed / (1024 * 1024));
+        mvwprintw(networkWindow, row++, 1, "Max Up: %.2f MB/s", interface.maxUploadSpeed / (1024 * 1024));
         row++;
+
+        totalDownloadSpeed += interface.downloadSpeed;
+        totalUploadSpeed += interface.uploadSpeed;
+        totalBytesReceived += interface.bytesReceived;
+        totalBytesSent += interface.bytesSent;
     }
+
+    mvwprintw(networkWindow, row++, 1, "Total Network Usage:");
+    mvwprintw(networkWindow, row++, 1, "Down: %.2f MB/s", totalDownloadSpeed / (1024 * 1024));
+    mvwprintw(networkWindow, row++, 1, "Up: %.2f MB/s", totalUploadSpeed / (1024 * 1024));
+    mvwprintw(networkWindow, row++, 1, "Total Received: %.2f GB", totalBytesReceived / (1024.0 * 1024 * 1024));
+    mvwprintw(networkWindow, row++, 1, "Total Sent: %.2f GB", totalBytesSent / (1024.0 * 1024 * 1024));
 
     wrefresh(networkWindow);
 }
+
 
 void Display::scrollProcessList(int direction) {
     processListScrollPosition += direction;

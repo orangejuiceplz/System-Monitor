@@ -57,10 +57,10 @@ void SystemMonitor::update() {
     cpuUsage = calculateCpuUsage();
     memoryUsage = calculateMemoryUsage();
     diskUsage = calculateDiskUsage();
-    networkMonitor.update();
     if (nvml_available) {
         gpuMonitor.update();
     }
+    networkMonitor.update();
     checkAlerts();
 }
 
@@ -201,7 +201,7 @@ void SystemMonitor::checkAlerts() {
 }
 
 std::vector<NetworkInterface> SystemMonitor::getNetworkInterfaces() const {
-    return networkMonitor.getNetworkInterfaces();
+    return networkMonitor.getActiveInterfaces();
 }
 
 void SystemMonitor::run() {

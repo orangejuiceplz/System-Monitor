@@ -1,10 +1,10 @@
 #pragma once
 
 #include "process_monitor_thread.h"
-#include "network_monitor.h"
 #include "gpu_monitor.h"
 #include "config.h"
 #include "logger.h"
+#include "network_monitor.h"
 #include <string>
 #include <vector>
 #include <optional>
@@ -23,11 +23,11 @@ public:
     [[nodiscard]] double getDiskUsage() const;
     [[nodiscard]] std::vector<ProcessInfo> getProcesses() const;
     [[nodiscard]] std::vector<GPUInfo> getGPUInfo() const;
+    [[nodiscard]] std::vector<NetworkInterface> getNetworkInterfaces() const;
     [[nodiscard]] bool isAlertTriggered() const;
     [[nodiscard]] bool isGPUMonitoringAvailable() const;
     void run();
     static const float GPU_TEMP_THRESHOLD;
-    std::vector<NetworkInterface> getNetworkInterfaces() const;
 
 private:
     double cpuUsage;
@@ -39,6 +39,7 @@ private:
     const Config& config;
     ProcessMonitorThread processMonitorThread;
     GPUMonitor gpuMonitor;
+    NetworkMonitor networkMonitor;
     std::shared_ptr<Logger> logger;
     Display& display;
     [[nodiscard]] double calculateCpuUsage();
@@ -47,5 +48,4 @@ private:
     [[nodiscard]] std::optional<std::vector<long long>> getSystemStats();
     void checkAlerts();
     bool initializeGPU();
-    NetworkMonitor networkMonitor;
 };

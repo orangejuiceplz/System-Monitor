@@ -1,9 +1,9 @@
 #include "../include/network_monitor.h"
 #include <fstream>
 #include <sstream>
-#include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include <algorithm>
 
 NetworkMonitor::NetworkMonitor() {
     lastUpdateTime = std::chrono::steady_clock::now();
@@ -13,50 +13,48 @@ void NetworkMonitor::update() {
     auto currentTime = std::chrono::steady_clock::now();
     double elapsedSeconds = std::chrono::duration<double>(currentTime - lastUpdateTime).count();
 
-    std::ifstream netdev("/proc/net/dev");
-    std::string line;
-    std::getline(netdev, line); // Skip header lines
-    std::getline(netdev, line);
+    for (const auto& entry : std::filesystem::directory_iterator("/sys/class/net/")) {
+        std::string interfaceName = entry.path().filename();
+        if (isInterfaceActive(interfaceName)) {
+            std::string interfaceType = getInterfaceType(interfaceName);
 
-    while (std::getline(netdev, line)) {
-        std::istringstream iss(line);
-        std::string interfaceName;
-        long long bytesReceived, bytesSent;
+            if (interfaceType == "ethernet" || interfaceType == "wireless") {
+                unsigned long long bytesReceived = readSysfsValue(interfaceName, "statistics/rx_bytes");
+                unsigned long long bytesSent = readSysfsValue(interfaceName, "statistics/tx_bytes");
 
-        iss >> interfaceName;
-        interfaceName.pop_back(); // Remove colon
+                auto it = interfaces.find(interfaceName);
+                if (it == interfaces.end()) {
+                    interfaces[interfaceName] = {interfaceName, interfaceType, bytesReceived, bytesSent, 0, 0, 0, 0};
+                    it = interfaces.find(interfaceName);
+                }
 
-        for (int i = 0; i < 9; ++i) iss >> bytesReceived;
-        iss >> bytesSent;
+                double downloadSpeed = (bytesReceived - it->second.bytesReceived) / elapsedSeconds;
+                double uploadSpeed = (bytesSent - it->second.bytesSent) / elapsedSeconds;
 
-        auto it = std::find_if(interfaces.begin(), interfaces.end(),
-                               [&](const NetworkInterface& i) { return i.name == interfaceName; });
-
-        if (it == interfaces.end()) {
-            interfaces.push_back({interfaceName, getInterfaceType(interfaceName), 
-                                  bytesReceived, bytesSent, 0, 0, 0, 0});
-            it = interfaces.end() - 1;
+                it->second.downloadSpeed = downloadSpeed;
+                it->second.uploadSpeed = uploadSpeed;
+                it->second.maxDownloadSpeed = std::max(it->second.maxDownloadSpeed, downloadSpeed);
+                it->second.maxUploadSpeed = std::max(it->second.maxUploadSpeed, uploadSpeed);
+                it->second.bytesReceived = bytesReceived;
+                it->second.bytesSent = bytesSent;
+            }
         }
-
-        double downloadSpeed = (bytesReceived - it->bytesReceived) / elapsedSeconds;
-        double uploadSpeed = (bytesSent - it->bytesSent) / elapsedSeconds;
-
-        it->downloadSpeed = downloadSpeed;
-        it->uploadSpeed = uploadSpeed;
-        it->maxDownloadSpeed = std::max(it->maxDownloadSpeed, downloadSpeed);
-        it->maxUploadSpeed = std::max(it->maxUploadSpeed, uploadSpeed);
-        it->bytesReceived = bytesReceived;
-        it->bytesSent = bytesSent;
     }
 
     lastUpdateTime = currentTime;
 }
 
-std::vector<NetworkInterface> NetworkMonitor::getNetworkInterfaces() const {
-    return interfaces;
+std::vector<NetworkInterface> NetworkMonitor::getActiveInterfaces() const {
+    std::vector<NetworkInterface> activeInterfaces;
+    for (const auto& pair : interfaces) {
+        if (isInterfaceActive(pair.first)) {
+            activeInterfaces.push_back(pair.second);
+        }
+    }
+    return activeInterfaces;
 }
 
-std::string NetworkMonitor::getInterfaceType(const std::string& name) {
+std::string NetworkMonitor::getInterfaceType(const std::string& name) const {
     std::string path = "/sys/class/net/" + name;
     if (std::filesystem::exists(path + "/wireless")) {
         return "wireless";
@@ -66,4 +64,26 @@ std::string NetworkMonitor::getInterfaceType(const std::string& name) {
         return "loopback";
     }
     return "unknown";
+}
+
+bool NetworkMonitor::isInterfaceActive(const std::string& name) const {
+    std::string operstatePath = "/sys/class/net/" + name + "/operstate";
+    std::ifstream operstate(operstatePath);
+    std::string state;
+    if (operstate >> state) {
+        return state == "up";
+    }
+    return false;
+}
+
+unsigned long long NetworkMonitor::readSysfsValue(const std::string& interface, const std::string& file) const {
+    std::string path = "/sys/class/net/" + interface + "/" + file;
+    std::ifstream ifs(path);
+    if (!ifs) {
+        std::cerr << "Failed to open " << path << std::endl;
+        return 0;
+    }
+    unsigned long long value;
+    ifs >> value;
+    return value;
 }
