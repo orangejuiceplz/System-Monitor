@@ -107,7 +107,7 @@ double SystemMonitor::calculateCpuUsage() {
     ss >> cpu >> totalUser >> totalUserLow >> totalSys >> totalIdle >> totalIOwait >> totalIRQ >> totalSoftIRQ;
 
     if (lastTotalUser == 0) {
-        
+
         lastTotalUser = totalUser;
         lastTotalUserLow = totalUserLow;
         lastTotalSys = totalSys;
