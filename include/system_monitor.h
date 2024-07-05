@@ -1,6 +1,6 @@
 #pragma once
 
-#include "process_monitor.h"
+#include "process_monitor_thread.h"
 #include "gpu_monitor.h"
 #include "config.h"
 #include "logger.h"
@@ -25,7 +25,6 @@ public:
     [[nodiscard]] bool isAlertTriggered() const;
     [[nodiscard]] bool isGPUMonitoringAvailable() const;
     void run();
-
     static const float GPU_TEMP_THRESHOLD;
 
 private:
@@ -34,13 +33,11 @@ private:
     double diskUsage;
     bool alertTriggered;
     bool nvml_available;
-
     const Config& config;
-    ProcessMonitor processMonitor;
+    ProcessMonitorThread processMonitorThread;
     GPUMonitor gpuMonitor;
     std::shared_ptr<Logger> logger;
     Display& display;
-
     [[nodiscard]] double calculateCpuUsage();
     [[nodiscard]] double calculateMemoryUsage();
     [[nodiscard]] double calculateDiskUsage();

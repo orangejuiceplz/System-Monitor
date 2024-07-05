@@ -9,7 +9,6 @@ class Display {
 public:
     Display();
     ~Display();
-
     void update(const SystemMonitor& monitor);
     bool handleInput();
     void showAlert(const std::string& message);
@@ -22,10 +21,11 @@ private:
     void updateGPUInfo(const std::vector<GPUInfo>& gpuInfos);
     void updateProcessList(const std::vector<ProcessInfo>& processes);
     void displayProcessList();
-
     WINDOW* mainWindow;
     WINDOW* logWindow;
     WINDOW* processListPad;
+    WINDOW* processWindow;
+    void updateProcessWindow(const std::vector<ProcessInfo>& processes);
     int processListScrollPosition;
     std::vector<std::string> logMessages;
     static const size_t MAX_LOG_MESSAGES = 10;

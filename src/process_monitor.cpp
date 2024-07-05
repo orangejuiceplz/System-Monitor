@@ -42,7 +42,7 @@ void ProcessMonitor::update() {
                     info.cpuUsage = calculateCPUUsage(pid);
                     newProcesses.push_back(info);
                 } catch (const std::exception& e) {
-                    // Ignore errors silently
+                    // silently ignore error
                 }
             }
         }
@@ -74,7 +74,6 @@ ProcessInfo ProcessMonitor::readProcessInfoFromProc(int pid) {
     info.pid = pid;
 
     try {
-        // Read process name
         std::string comm;
         {
             std::ifstream comm_file("/proc/" + std::to_string(pid) + "/comm");
@@ -98,7 +97,7 @@ ProcessInfo ProcessMonitor::readProcessInfoFromProc(int pid) {
             }
         }
 
-        // Remove non-printable characters and truncate if necessary
+
         info.name.erase(std::remove_if(info.name.begin(), info.name.end(), 
                                        [](unsigned char c) { return !std::isprint(c); }),
                         info.name.end());
@@ -106,15 +105,13 @@ ProcessInfo ProcessMonitor::readProcessInfoFromProc(int pid) {
             info.name = info.name.substr(0, TRUNCATE_LENGTH) + "...";
         }
 
-        // Read memory usage
         unsigned long long vm_size, vm_rss;
         {
             std::ifstream statm_file("/proc/" + std::to_string(pid) + "/statm");
             statm_file >> vm_size >> vm_rss;
         }
-        info.memoryUsage = (vm_rss * sysconf(_SC_PAGESIZE)) / (1024.0 * 1024.0); // Convert to MB
+        info.memoryUsage = (vm_rss * sysconf(_SC_PAGESIZE)) / (1024.0 * 1024.0);
 
-        // Read disk I/O
         {
             std::ifstream io_file("/proc/" + std::to_string(pid) + "/io");
             std::string line;
@@ -129,10 +126,8 @@ ProcessInfo ProcessMonitor::readProcessInfoFromProc(int pid) {
             }
         }
 
-        // Calculate CPU usage
         info.cpuUsage = calculateCPUUsage(pid);
 
-        // Calculate overall usage
         info.overallUsage = CPU_WEIGHT * info.cpuUsage + 
                             MEMORY_WEIGHT * info.memoryUsage + 
                             DISK_WEIGHT * ((info.diskRead + info.diskWrite) / (1024.0 * 1024.0));
@@ -159,7 +154,7 @@ double ProcessMonitor::getTotalSystemMemory() {
             std::istringstream iss(line);
             std::string dummy;
             iss >> dummy >> memTotal;
-            return memTotal * 1024.0; // Convert KB to Bytes
+            return memTotal * 1024.0; 
         }
     }
     return 0.0;

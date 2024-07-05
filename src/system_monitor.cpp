@@ -13,7 +13,8 @@ const float SystemMonitor::GPU_TEMP_THRESHOLD = 80.0f;
 
 SystemMonitor::SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display, bool nvml_available)
     : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), 
-      nvml_available(nvml_available), config(config), logger(logger), display(display) {}
+      nvml_available(nvml_available), config(config), logger(logger), display(display),
+      processMonitorThread(config.getUpdateIntervalMs()) {}
 
 bool SystemMonitor::initialize() {
     if (nvml_available) {
@@ -30,6 +31,7 @@ bool SystemMonitor::initialize() {
             nvml_available = false;
         }
     }
+    processMonitorThread.start();
     return true;
 }
 
@@ -37,7 +39,6 @@ void SystemMonitor::update() {
     cpuUsage = calculateCpuUsage();
     memoryUsage = calculateMemoryUsage();
     diskUsage = calculateDiskUsage();
-    processMonitor.update();
     if (nvml_available) {
         gpuMonitor.update();
     }
@@ -57,7 +58,7 @@ double SystemMonitor::getDiskUsage() const {
 }
 
 std::vector<ProcessInfo> SystemMonitor::getProcesses() const {
-    return processMonitor.getProcesses();
+    return processMonitorThread.getProcesses();
 }
 
 std::vector<GPUInfo> SystemMonitor::getGPUInfo() const {
@@ -70,7 +71,6 @@ std::vector<GPUInfo> SystemMonitor::getGPUInfo() const {
 bool SystemMonitor::isAlertTriggered() const {
     return alertTriggered;
 }
-
 bool SystemMonitor::isGPUMonitoringAvailable() const {
     return nvml_available;
 }
@@ -89,7 +89,6 @@ double SystemMonitor::calculateCpuUsage() {
     ss >> cpu >> totalUser >> totalUserLow >> totalSys >> totalIdle >> totalIOwait >> totalIRQ >> totalSoftIRQ;
 
     if (lastTotalUser == 0) {
-        // First call, just set the last values
         lastTotalUser = totalUser;
         lastTotalUserLow = totalUserLow;
         lastTotalSys = totalSys;
@@ -198,9 +197,15 @@ void SystemMonitor::checkAlerts() {
 }
 
 void SystemMonitor::run() {
-    while (display.handleInput()) {
+    while (true) {
         update();
         display.update(*this);
-        std::this_thread::sleep_for(std::chrono::seconds(config.getUpdateInterval()));
+        std::this_thread::sleep_for(std::chrono::milliseconds(config.getUpdateIntervalMs()));
+        
+        int ch = getch();
+        if (ch == 'q' || ch == 'Q') {
+            break;
+        }
     }
+    processMonitorThread.stop();
 }

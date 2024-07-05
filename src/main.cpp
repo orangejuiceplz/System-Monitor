@@ -34,27 +34,19 @@ int main() {
         return 1;
     }
 
-    logger->logWarning("System Monitor started");
+    logger->logInfo("System Monitor started");
     display.addLogMessage("System Monitor started");
 
     try {
-        while (true) {
-            monitor.update();
-            display.update(monitor);
-            
-            if (!display.handleInput()) {
-                logger->logWarning("System Monitor stopped");
-                display.addLogMessage("System Monitor stopped");
-                break;
-            }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
+        monitor.run();
     } catch (const std::exception& e) {
         logger->logError("Unexpected error: " + std::string(e.what()));
         std::cerr << "An unexpected error occurred. Check the log file for details." << std::endl;
         return 1;
     }
+
+    logger->logInfo("System Monitor stopped");
+    display.addLogMessage("System Monitor stopped");
 
     return 0;
 }

@@ -3,14 +3,14 @@
 #include <sstream>
 #include <algorithm>
 
-Display::Display() : mainWindow(nullptr), logWindow(nullptr), processListPad(nullptr), processListScrollPosition(0) {
+Display::Display() : mainWindow(nullptr), logWindow(nullptr), processWindow(nullptr), processListScrollPosition(0) {
     initializeScreen();
 }
 
 Display::~Display() {
     if (mainWindow) delwin(mainWindow);
     if (logWindow) delwin(logWindow);
-    if (processListPad) delwin(processListPad);
+    if (processWindow) delwin(processWindow);
     endwin();
 }
 
@@ -39,18 +39,19 @@ void Display::initializeScreen() {
     int yMax, xMax;
     getmaxyx(stdscr, yMax, xMax);
 
-    mainWindow = newwin(yMax - 12, xMax, 0, 0);
+    mainWindow = newwin(yMax - 24, xMax, 0, 0);
+    processWindow = newwin(12, xMax, yMax - 24, 0);
     logWindow = newwin(12, xMax, yMax - 12, 0);
 
     keypad(mainWindow, TRUE);
     keypad(logWindow, TRUE);
+    keypad(processWindow, TRUE);
 }
 
 void Display::update(const SystemMonitor& monitor) {
     updateMainWindow(monitor);
+    updateProcessWindow(monitor.getProcesses());
     updateLogWindow();
-    updateProcessList(monitor.getProcesses());
-    displayProcessList();
 }
 
 void Display::updateMainWindow(const SystemMonitor& monitor) {
@@ -83,7 +84,7 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     } else {
         wattron(mainWindow, A_UNDERLINE);
     }
-    mvwprintw(mainWindow, yMax - 2, 2, "Press 'q' to quit, Up/Down to scroll");
+    mvwprintw(mainWindow, yMax - 2, 2, "Press 'q' to quit");
     if (COLORS >= 8) {
         wattroff(mainWindow, COLOR_PAIR(2));
     } else {
@@ -150,44 +151,31 @@ void Display::updateLogWindow() {
     wrefresh(logWindow);
 }
 
-void Display::updateProcessList(const std::vector<ProcessInfo>& processes) {
-    if (processListPad == nullptr) {
-        processListPad = newpad(processes.size() + 1, COLS - 2);
+void Display::updateProcessWindow(const std::vector<ProcessInfo>& processes) {
+    wclear(processWindow);
+    box(processWindow, 0, 0);
+
+    if (COLORS >= 8) {
+        wattron(processWindow, COLOR_PAIR(3) | A_BOLD);
     } else {
-        wresize(processListPad, processes.size() + 1, COLS - 2);
+        wattron(processWindow, A_BOLD);
+    }
+    mvwprintw(processWindow, 0, 2, "Process List");
+    if (COLORS >= 8) {
+        wattroff(processWindow, COLOR_PAIR(3) | A_BOLD);
+    } else {
+        wattroff(processWindow, A_BOLD);
     }
 
-    wclear(processListPad);
-
-    for (size_t i = 0; i < processes.size(); ++i) {
-        const auto& p = processes[i];
-        mvwprintw(processListPad, i, 0, "%-20s (PID: %5d): CPU %.1f%%, Mem %.1f MB, Overall %.1f%%", 
-                  p.name.c_str(), p.pid, p.cpuUsage, p.memoryUsage, p.overallUsage);
+    int row = 1;
+    for (const auto& process : processes) {
+        if (row >= 11) break; 
+        mvwprintw(processWindow, row, 1, "%-20s CPU: %5.1f%% Mem: %5.1f MB",
+                  process.name.c_str(), process.cpuUsage, process.memoryUsage);
+        row++;
     }
-}
 
-void Display::displayProcessList() {
-    int yMax, xMax;
-    getmaxyx(mainWindow, yMax, xMax);
-    int listHeight = yMax - 12; // Adjust based on your layout
-
-    prefresh(processListPad, processListScrollPosition, 0, 10, 2, yMax - 2, xMax - 2);
-}
-
-bool Display::handleInput() {
-    int ch = wgetch(mainWindow);
-    switch (ch) {
-        case KEY_UP:
-            if (processListScrollPosition > 0) processListScrollPosition--;
-            break;
-        case KEY_DOWN:
-            processListScrollPosition++;
-            break;
-        case 'q':
-        case 'Q':
-            return false;
-    }
-    return true;
+    wrefresh(processWindow);
 }
 
 void Display::showAlert(const std::string& message) {
@@ -200,4 +188,15 @@ void Display::addLogMessage(const std::string& message) {
         logMessages.erase(logMessages.begin());
     }
     updateLogWindow();
+}
+
+bool Display::handleInput() {
+    int ch = wgetch(stdscr);
+    switch (ch) {
+        case 'q':
+        case 'Q':
+            return false;
+        default:
+            return true;
+    }
 }

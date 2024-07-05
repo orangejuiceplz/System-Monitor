@@ -7,7 +7,7 @@ Config::Config() {
 }
 
 void Config::setDefaultValues() {
-    settings["update_interval"] = "1";
+    settings["update_interval_ms"] = "2000";
     settings["cpu_threshold"] = "80.0";
     settings["memory_threshold"] = "80.0";
     settings["disk_threshold"] = "90.0";
@@ -58,8 +58,8 @@ T Config::getValue(const std::string& key, T defaultValue) const {
     return value;
 }
 
-int Config::getUpdateInterval() const {
-    return getValue<int>("update_interval", 1);
+int Config::getUpdateIntervalMs() const {
+    return getValue<int>("update_interval_ms", 2000);
 }
 
 double Config::getCpuThreshold() const {
@@ -78,8 +78,8 @@ double Config::getGpuTempThreshold() const {
     return getValue<double>("gpu_temp_threshold", 80.0);
 }
 
-void Config::setUpdateInterval(int interval) {
-    settings["update_interval"] = std::to_string(interval);
+void Config::setUpdateIntervalMs(int interval) {
+    settings["update_interval_ms"] = std::to_string(interval);
 }
 
 void Config::setCpuThreshold(double threshold) {

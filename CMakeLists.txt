@@ -31,6 +31,7 @@ add_executable(system_monitor
     src/main.cpp
     src/system_monitor.cpp
     src/process_monitor.cpp
+    src/process_monitor_thread.cpp
     src/display.cpp
     src/config.cpp
     src/logger.cpp
@@ -45,23 +46,9 @@ target_link_libraries(system_monitor
     ${CUDA_RUNTIME_LIBRARY}
     ${PROCPS_LIBRARIES}
     dl
+    pthread
 )
 
 # Add link directories
 link_directories(${PROCPS_LIBRARY_DIRS})
 
-# Add compiler warnings
-if(MSVC)
-    target_compile_options(system_monitor PRIVATE /W4)
-else()
-    target_compile_options(system_monitor PRIVATE -Wall -Wextra -Wpedantic)
-endif()
-
-# Install
-install(TARGETS system_monitor DESTINATION bin)
-
-# Copy configuration file to build directory
-configure_file(${CMAKE_SOURCE_DIR}/system_monitor.conf ${CMAKE_BINARY_DIR}/system_monitor.conf COPYONLY)
-
-# Install configuration file
-install(FILES ${CMAKE_SOURCE_DIR}/system_monitor.conf DESTINATION etc)
