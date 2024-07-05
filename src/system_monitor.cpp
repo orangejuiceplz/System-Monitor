@@ -1,5 +1,6 @@
 #include "../include/system_monitor.h"
 #include "../include/display.h"
+#include "../include/network_monitor.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -56,6 +57,7 @@ void SystemMonitor::update() {
     cpuUsage = calculateCpuUsage();
     memoryUsage = calculateMemoryUsage();
     diskUsage = calculateDiskUsage();
+    networkMonitor.update();
     if (nvml_available) {
         gpuMonitor.update();
     }
@@ -196,6 +198,10 @@ void SystemMonitor::checkAlerts() {
             }
         }
     }
+}
+
+std::vector<NetworkInterface> SystemMonitor::getNetworkInterfaces() const {
+    return networkMonitor.getNetworkInterfaces();
 }
 
 void SystemMonitor::run() {

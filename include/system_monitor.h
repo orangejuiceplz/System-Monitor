@@ -1,6 +1,7 @@
 #pragma once
 
 #include "process_monitor_thread.h"
+#include "network_monitor.h"
 #include "gpu_monitor.h"
 #include "config.h"
 #include "logger.h"
@@ -26,6 +27,7 @@ public:
     [[nodiscard]] bool isGPUMonitoringAvailable() const;
     void run();
     static const float GPU_TEMP_THRESHOLD;
+    std::vector<NetworkInterface> getNetworkInterfaces() const;
 
 private:
     double cpuUsage;
@@ -45,4 +47,5 @@ private:
     [[nodiscard]] std::optional<std::vector<long long>> getSystemStats();
     void checkAlerts();
     bool initializeGPU();
+    NetworkMonitor networkMonitor;
 };

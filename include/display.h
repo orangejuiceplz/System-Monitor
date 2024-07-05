@@ -1,5 +1,6 @@
 #pragma once
 
+#include "network_monitor.h"
 #include "system_monitor.h"
 #include <ncurses.h>
 #include <vector>
@@ -14,7 +15,7 @@ public:
     void showAlert(const std::string& message);
     void addLogMessage(const std::string& message);
     void forceUpdate(const SystemMonitor& monitor);
-
+    void updateNetworkInfo(const std::vector<NetworkInterface>& interfaces);
 
 private:
     void initializeScreen();
@@ -26,6 +27,7 @@ private:
     WINDOW* mainWindow;
     WINDOW* logWindow;
     WINDOW* processWindow;
+    WINDOW* networkWindow;
     int processListScrollPosition;
     std::vector<std::string> logMessages;
     static const size_t MAX_LOG_MESSAGES = 10;

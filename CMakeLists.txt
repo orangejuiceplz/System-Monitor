@@ -4,12 +4,11 @@ project(SystemMonitor)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find required packages
 find_package(Curses REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PROCPS REQUIRED libprocps)
 
-# CUDA and NVML
+# direct support for cuda and NVML
 include_directories(/opt/cuda/targets/x86_64-linux/include)
 find_library(NVML_LIBRARY NAMES nvidia-ml PATHS /opt/cuda/targets/x86_64-linux/lib64 /opt/cuda/lib64 /usr/lib64 /usr/lib/x86_64-linux-gnu)
 if(NOT NVML_LIBRARY)
@@ -21,12 +20,10 @@ if(NOT CUDA_RUNTIME_LIBRARY)
     message(FATAL_ERROR "CUDA runtime library not found")
 endif()
 
-# Include directories
 include_directories(include)
 include_directories(${CURSES_INCLUDE_DIR})
 include_directories(${PROCPS_INCLUDE_DIRS})
 
-# Add executable
 add_executable(system_monitor
     src/main.cpp
     src/system_monitor.cpp
@@ -36,9 +33,9 @@ add_executable(system_monitor
     src/config.cpp
     src/logger.cpp
     src/gpu_monitor.cpp
+    src/network_monitor.cpp
 )
 
-# Link libraries
 target_link_libraries(system_monitor 
     ${CURSES_LIBRARIES}
     stdc++fs
@@ -49,6 +46,5 @@ target_link_libraries(system_monitor
     pthread
 )
 
-# Add link directories
 link_directories(${PROCPS_LIBRARY_DIRS})
 
