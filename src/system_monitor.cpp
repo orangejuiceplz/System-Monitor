@@ -202,11 +202,16 @@ void SystemMonitor::run() {
     while (true) {
         update();
         display.update(*this);
-        std::this_thread::sleep_for(std::chrono::milliseconds(config.getUpdateIntervalMs()));
         
-        if (!display.handleInput()) {
-            break;
+        auto start = std::chrono::steady_clock::now();
+        while (std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::steady_clock::now() - start).count() < config.getUpdateIntervalMs()) {
+            if (!display.handleInput()) {
+                processMonitorThread.stop();
+                return;
+            }
+            display.forceUpdate(*this);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
     }
-    processMonitorThread.stop();
 }

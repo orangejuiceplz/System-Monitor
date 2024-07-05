@@ -13,6 +13,8 @@ public:
     bool handleInput();
     void showAlert(const std::string& message);
     void addLogMessage(const std::string& message);
+    void forceUpdate(const SystemMonitor& monitor);
+
 
 private:
     void initializeScreen();
@@ -28,4 +30,5 @@ private:
     std::vector<std::string> logMessages;
     static const size_t MAX_LOG_MESSAGES = 10;
     static const int PROCESS_WINDOW_HEIGHT = 10;
+    bool needsUpdate;
 };

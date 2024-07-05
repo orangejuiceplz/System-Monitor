@@ -3,7 +3,7 @@
 #include <sstream>
 #include <algorithm>
 
-Display::Display() : mainWindow(nullptr), logWindow(nullptr), processWindow(nullptr), processListScrollPosition(0) {
+Display::Display() : mainWindow(nullptr), logWindow(nullptr), processWindow(nullptr), processListScrollPosition(0), needsUpdate(false) {
     initializeScreen();
 }
 
@@ -181,6 +181,7 @@ void Display::scrollProcessList(int direction) {
     if (processListScrollPosition < 0) {
         processListScrollPosition = 0;
     }
+    needsUpdate = true;
 }
 
 void Display::showAlert(const std::string& message) {
@@ -209,5 +210,13 @@ bool Display::handleInput() {
             return true;
         default:
             return true;
+    }
+}
+
+
+void Display::forceUpdate(const SystemMonitor& monitor) {
+    if (needsUpdate) {
+        updateProcessWindow(monitor.getProcesses());
+        needsUpdate = false;
     }
 }
