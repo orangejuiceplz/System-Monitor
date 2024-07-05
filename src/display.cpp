@@ -77,7 +77,9 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     mvwprintw(mainWindow, 4, 2, "Memory Usage: %.2f%%", monitor.getMemoryUsage());
     mvwprintw(mainWindow, 5, 2, "Disk Usage:   %.2f%%", monitor.getDiskUsage());
 
-    updateGPUInfo(monitor.getGPUInfo());
+    if (monitor.isGPUMonitoringAvailable()) {
+        updateGPUInfo(monitor.getGPUInfo());
+    }
 
     if (COLORS >= 8) {
         wattron(mainWindow, COLOR_PAIR(2));
@@ -96,34 +98,30 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
 
 void Display::updateGPUInfo(const std::vector<GPUInfo>& gpuInfos) {
     int startY = 7;
-    if (gpuInfos.empty()) {
-        mvwprintw(mainWindow, startY++, 2, "GPU: Not available");
-    } else {
-        for (const auto& gpu : gpuInfos) {
-            mvwprintw(mainWindow, startY++, 2, "GPU %d: %s", gpu.index, gpu.name.c_str());
-            mvwprintw(mainWindow, startY, 4, "Temp: ");
-            if (gpu.temperature >= 0) {
-                mvwprintw(mainWindow, startY, 10, "%.1f°C", gpu.temperature);
-            } else {
-                mvwprintw(mainWindow, startY, 10, "N/A");
-            }
-            mvwprintw(mainWindow, startY, 20, "Util: ");
-            if (gpu.gpuUtilization >= 0) {
-                mvwprintw(mainWindow, startY, 26, "%.1f%%", gpu.gpuUtilization);
-            } else {
-                mvwprintw(mainWindow, startY, 26, "N/A");
-            }
-            mvwprintw(mainWindow, startY, 36, "Mem: ");
-            if (gpu.memoryUtilization >= 0) {
-                mvwprintw(mainWindow, startY, 41, "%.1f%%", gpu.memoryUtilization);
-            } else {
-                mvwprintw(mainWindow, startY, 41, "N/A");
-            }
-            if (gpu.fanSpeed >= 0) {
-                mvwprintw(mainWindow, startY, 51, "Fan: %.1f%%", gpu.fanSpeed);
-            }
-            startY += 2;
+    for (const auto& gpu : gpuInfos) {
+        mvwprintw(mainWindow, startY++, 2, "GPU %d: %s", gpu.index, gpu.name.c_str());
+        mvwprintw(mainWindow, startY, 4, "Temp: ");
+        if (gpu.temperature >= 0) {
+            mvwprintw(mainWindow, startY, 10, "%.1f°C", gpu.temperature);
+        } else {
+            mvwprintw(mainWindow, startY, 10, "N/A");
         }
+        mvwprintw(mainWindow, startY, 20, "Util: ");
+        if (gpu.gpuUtilization >= 0) {
+            mvwprintw(mainWindow, startY, 26, "%.1f%%", gpu.gpuUtilization);
+        } else {
+            mvwprintw(mainWindow, startY, 26, "N/A");
+        }
+        mvwprintw(mainWindow, startY, 36, "Mem: ");
+        if (gpu.memoryUtilization >= 0) {
+            mvwprintw(mainWindow, startY, 41, "%.1f%%", gpu.memoryUtilization);
+        } else {
+            mvwprintw(mainWindow, startY, 41, "N/A");
+        }
+        if (gpu.fanSpeedAvailable) {
+            mvwprintw(mainWindow, startY, 51, "Fan: %.1f%%", gpu.fanSpeed);
+        }
+        startY += 2;
     }
 }
 

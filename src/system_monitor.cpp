@@ -14,25 +14,42 @@ const float SystemMonitor::GPU_TEMP_THRESHOLD = 80.0f;
 SystemMonitor::SystemMonitor(const Config& config, std::shared_ptr<Logger> logger, Display& display, bool nvml_available)
     : cpuUsage(0), memoryUsage(0), diskUsage(0), alertTriggered(false), 
       nvml_available(nvml_available), config(config), logger(logger), display(display),
-      processMonitorThread(config.getUpdateIntervalMs()) {}
+      processMonitorThread(config.getUpdateIntervalMs()), gpuUnavailabilityLogged(false) {}
 
 bool SystemMonitor::initialize() {
+    if (!initializeGPU()) {
+        nvml_available = false;
+    }
+    processMonitorThread.start();
+    return true;
+}
+
+bool SystemMonitor::initializeGPU() {
     if (nvml_available) {
         try {
             if (!gpuMonitor.initialize()) {
                 logger->logError("Failed to initialize GPU monitor");
-                nvml_available = false;
+                display.addLogMessage("GPU monitoring unavailable: Failed to initialize");
+                gpuUnavailabilityLogged = true;
+                return false;
             }
         } catch (const std::exception& e) {
             logger->logError("Exception during GPU monitor initialization: " + std::string(e.what()));
-            nvml_available = false;
+            display.addLogMessage("GPU monitoring unavailable: " + std::string(e.what()));
+            gpuUnavailabilityLogged = true;
+            return false;
         } catch (...) {
             logger->logError("Unknown exception during GPU monitor initialization");
-            nvml_available = false;
+            display.addLogMessage("GPU monitoring unavailable: Unknown error");
+            gpuUnavailabilityLogged = true;
+            return false;
         }
+    } else if (!gpuUnavailabilityLogged) {
+        logger->logWarning("GPU monitoring is not available");
+        display.addLogMessage("GPU monitoring not available");
+        gpuUnavailabilityLogged = true;
     }
-    processMonitorThread.start();
-    return true;
+    return nvml_available;
 }
 
 void SystemMonitor::update() {
@@ -71,6 +88,7 @@ std::vector<GPUInfo> SystemMonitor::getGPUInfo() const {
 bool SystemMonitor::isAlertTriggered() const {
     return alertTriggered;
 }
+
 bool SystemMonitor::isGPUMonitoringAvailable() const {
     return nvml_available;
 }
@@ -89,6 +107,7 @@ double SystemMonitor::calculateCpuUsage() {
     ss >> cpu >> totalUser >> totalUserLow >> totalSys >> totalIdle >> totalIOwait >> totalIRQ >> totalSoftIRQ;
 
     if (lastTotalUser == 0) {
+        
         lastTotalUser = totalUser;
         lastTotalUserLow = totalUserLow;
         lastTotalSys = totalSys;
@@ -145,23 +164,6 @@ double SystemMonitor::calculateDiskUsage() {
     }
 }
 
-std::optional<std::vector<long long>> SystemMonitor::getSystemStats() {
-    std::ifstream statFile("/proc/stat");
-    std::string line;
-    if (std::getline(statFile, line)) {
-        std::istringstream iss(line);
-        std::string cpu;
-        std::vector<long long> stats;
-        long long value;
-        iss >> cpu;
-        while (iss >> value) {
-            stats.push_back(value);
-        }
-        return stats;
-    }
-    return std::nullopt;
-}
-
 void SystemMonitor::checkAlerts() {
     bool cpuAlert = cpuUsage > config.getCpuThreshold();
     bool memoryAlert = memoryUsage > config.getMemoryThreshold();
@@ -202,8 +204,7 @@ void SystemMonitor::run() {
         display.update(*this);
         std::this_thread::sleep_for(std::chrono::milliseconds(config.getUpdateIntervalMs()));
         
-        int ch = getch();
-        if (ch == 'q' || ch == 'Q') {
+        if (!display.handleInput()) {
             break;
         }
     }

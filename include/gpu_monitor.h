@@ -28,6 +28,7 @@ private:
     std::vector<GPUInfo> gpuInfos;
     nvmlReturn_t result;
     unsigned int deviceCount;
+    std::vector<bool> fanUnavailabilityLogged;
 
     void checkNVMLError(nvmlReturn_t result, const char* message);
 };

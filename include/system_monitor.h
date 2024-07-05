@@ -33,6 +33,7 @@ private:
     double diskUsage;
     bool alertTriggered;
     bool nvml_available;
+    bool gpuUnavailabilityLogged;
     const Config& config;
     ProcessMonitorThread processMonitorThread;
     GPUMonitor gpuMonitor;
@@ -43,4 +44,5 @@ private:
     [[nodiscard]] double calculateDiskUsage();
     [[nodiscard]] std::optional<std::vector<long long>> getSystemStats();
     void checkAlerts();
+    bool initializeGPU();
 };
