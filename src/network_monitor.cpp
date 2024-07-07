@@ -4,6 +4,13 @@
 #include <filesystem>
 #include <iostream>
 #include <algorithm>
+#include <cstring>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <unistd.h>
 
 NetworkMonitor::NetworkMonitor() {
     lastUpdateTime = std::chrono::steady_clock::now();
@@ -24,7 +31,7 @@ void NetworkMonitor::update() {
 
                 auto it = interfaces.find(interfaceName);
                 if (it == interfaces.end()) {
-                    interfaces[interfaceName] = {interfaceName, interfaceType, bytesReceived, bytesSent, 0, 0, 0, 0};
+                    interfaces[interfaceName] = {interfaceName, interfaceType, getIpAddress(interfaceName), bytesReceived, bytesSent, 0, 0, 0, 0};
                     it = interfaces.find(interfaceName);
                 }
 
@@ -86,4 +93,24 @@ unsigned long long NetworkMonitor::readSysfsValue(const std::string& interface, 
     unsigned long long value;
     ifs >> value;
     return value;
+}
+
+std::string NetworkMonitor::getIpAddress(const std::string& interface) const {
+    int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd == -1) {
+        std::cerr << "Failed to create socket" << std::endl;
+        return "";
+    }
+
+    struct ifreq ifr;
+    ifr.ifr_addr.sa_family = AF_INET;
+    strncpy(ifr.ifr_name, interface.c_str(), IFNAMSIZ - 1);
+
+    if (ioctl(fd, SIOCGIFADDR, &ifr) == -1) {
+        close(fd);
+        return "";
+    }
+
+    close(fd);
+    return inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
 }

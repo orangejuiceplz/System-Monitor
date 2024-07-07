@@ -17,6 +17,9 @@ public:
 
 private:
     WINDOW* mainWindow;
+    WINDOW* cpuWindow;
+    WINDOW* memoryWindow;
+    WINDOW* diskWindow;
     WINDOW* logWindow;
     WINDOW* processWindow;
     WINDOW* networkWindow;
@@ -27,6 +30,9 @@ private:
 
     void initializeScreen();
     void updateMainWindow(const SystemMonitor& monitor);
+    void updateCPUWindow(const SystemMonitor& monitor);
+    void updateMemoryWindow(const SystemMonitor& monitor);
+    void updateDiskWindow(const SystemMonitor& monitor);
     void updateProcessWindow(const std::vector<ProcessInfo>& processes);
     void updateNetworkInfo(const std::vector<NetworkInterface>& interfaces);
     void updateLogWindow();

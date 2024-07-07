@@ -1,16 +1,19 @@
 #include "../include/display.h"
-#include "../include/network_monitor.h"
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
 
-Display::Display() : mainWindow(nullptr), logWindow(nullptr), processWindow(nullptr), networkWindow(nullptr), 
+Display::Display() : mainWindow(nullptr), cpuWindow(nullptr), memoryWindow(nullptr), diskWindow(nullptr),
+                     logWindow(nullptr), processWindow(nullptr), networkWindow(nullptr), 
                      processListScrollPosition(0), needsUpdate(false), networkWindowWidth(30) {
     initializeScreen();
 }
 
 Display::~Display() {
     if (mainWindow) delwin(mainWindow);
+    if (cpuWindow) delwin(cpuWindow);
+    if (memoryWindow) delwin(memoryWindow);
+    if (diskWindow) delwin(diskWindow);
     if (logWindow) delwin(logWindow);
     if (processWindow) delwin(processWindow);
     if (networkWindow) delwin(networkWindow);
@@ -43,11 +46,17 @@ void Display::initializeScreen() {
     getmaxyx(stdscr, yMax, xMax);
 
     mainWindow = newwin(yMax - 24, xMax - networkWindowWidth, 0, 0);
+    cpuWindow = newwin(6, (xMax - networkWindowWidth) / 3, 0, 0);
+    memoryWindow = newwin(6, (xMax - networkWindowWidth) / 3, 0, (xMax - networkWindowWidth) / 3);
+    diskWindow = newwin(6, (xMax - networkWindowWidth) / 3, 0, 2 * (xMax - networkWindowWidth) / 3);
     processWindow = newwin(12, xMax - networkWindowWidth, yMax - 24, 0);
     logWindow = newwin(12, xMax - networkWindowWidth, yMax - 12, 0);
     networkWindow = newwin(yMax, networkWindowWidth, 0, xMax - networkWindowWidth);
 
     keypad(mainWindow, TRUE);
+    keypad(cpuWindow, TRUE);
+    keypad(memoryWindow, TRUE);
+    keypad(diskWindow, TRUE);
     keypad(logWindow, TRUE);
     keypad(processWindow, TRUE);
     keypad(networkWindow, TRUE);
@@ -55,6 +64,9 @@ void Display::initializeScreen() {
 
 void Display::update(const SystemMonitor& monitor) {
     updateMainWindow(monitor);
+    updateCPUWindow(monitor);
+    updateMemoryWindow(monitor);
+    updateDiskWindow(monitor);
     updateProcessWindow(monitor.getProcesses());
     updateNetworkInfo(monitor.getNetworkInterfaces());
     updateLogWindow();
@@ -79,10 +91,6 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
         wattroff(mainWindow, A_BOLD);
     }
 
-    mvwprintw(mainWindow, 3, 2, "CPU Usage:    %.2f%%", monitor.getCpuUsage());
-    mvwprintw(mainWindow, 4, 2, "Memory Usage: %.2f%%", monitor.getMemoryUsage());
-    mvwprintw(mainWindow, 5, 2, "Disk Usage:   %.2f%%", monitor.getDiskUsage());
-
     if (monitor.isGPUMonitoringAvailable()) {
         updateGPUInfo(monitor.getGPUInfo());
     }
@@ -100,6 +108,75 @@ void Display::updateMainWindow(const SystemMonitor& monitor) {
     }
 
     wrefresh(mainWindow);
+}
+
+void Display::updateCPUWindow(const SystemMonitor& monitor) {
+    wclear(cpuWindow);
+    box(cpuWindow, 0, 0);
+
+    if (COLORS >= 8) {
+        wattron(cpuWindow, COLOR_PAIR(3) | A_BOLD);
+    } else {
+        wattron(cpuWindow, A_BOLD);
+    }
+    mvwprintw(cpuWindow, 0, 2, "CPU");
+    if (COLORS >= 8) {
+        wattroff(cpuWindow, COLOR_PAIR(3) | A_BOLD);
+    } else {
+        wattroff(cpuWindow, A_BOLD);
+    }
+
+    mvwprintw(cpuWindow, 1, 2, "Model: %s", monitor.getCpuModel().c_str());
+    mvwprintw(cpuWindow, 2, 2, "Usage: %.2f%%", monitor.getCpuUsage());
+
+    wrefresh(cpuWindow);
+}
+
+void Display::updateMemoryWindow(const SystemMonitor& monitor) {
+    wclear(memoryWindow);
+    box(memoryWindow, 0, 0);
+
+    if (COLORS >= 8) {
+        wattron(memoryWindow, COLOR_PAIR(3) | A_BOLD);
+    } else {
+        wattron(memoryWindow, A_BOLD);
+    }
+    mvwprintw(memoryWindow, 0, 2, "Memory");
+    if (COLORS >= 8) {
+        wattroff(memoryWindow, COLOR_PAIR(3) | A_BOLD);
+    } else {
+        wattroff(memoryWindow, A_BOLD);
+    }
+
+    double totalMemoryGB = monitor.getTotalMemory() / (1024.0 * 1024 * 1024);
+    mvwprintw(memoryWindow, 1, 2, "Total: %.2f GB", totalMemoryGB);
+    mvwprintw(memoryWindow, 2, 2, "Usage: %.2f%%", monitor.getMemoryUsage());
+
+    wrefresh(memoryWindow);
+}
+
+void Display::updateDiskWindow(const SystemMonitor& monitor) {
+    wclear(diskWindow);
+    box(diskWindow, 0, 0);
+
+    if (COLORS >= 8) {
+        wattron(diskWindow, COLOR_PAIR(3) | A_BOLD);
+    } else {
+        wattron(diskWindow, A_BOLD);
+    }
+    mvwprintw(diskWindow, 0, 2, "Disk");
+    if (COLORS >= 8) {
+        wattroff(diskWindow, COLOR_PAIR(3) | A_BOLD);
+    } else {
+        wattroff(diskWindow, A_BOLD);
+    }
+
+    double totalDiskGB = monitor.getTotalDiskSpace() / (1024.0 * 1024 * 1024);
+    mvwprintw(diskWindow, 1, 2, "Total: %.2f GB", totalDiskGB);
+    mvwprintw(diskWindow, 2, 2, "Usage: %.2f%%", monitor.getDiskUsage());
+    mvwprintw(diskWindow, 3, 2, "Device: %s", monitor.getDiskName().c_str());
+
+    wrefresh(diskWindow);
 }
 
 void Display::updateGPUInfo(const std::vector<GPUInfo>& gpuInfos) {
@@ -206,6 +283,7 @@ void Display::updateNetworkInfo(const std::vector<NetworkInterface>& interfaces)
 
     for (const auto& interface : interfaces) {
         mvwprintw(networkWindow, row++, 1, "%s (%s)", interface.name.c_str(), interface.type.c_str());
+        mvwprintw(networkWindow, row++, 1, "IP: %s", interface.ipAddress.c_str());
         mvwprintw(networkWindow, row++, 1, "Down: %.2f MB/s", interface.downloadSpeed / (1024 * 1024));
         mvwprintw(networkWindow, row++, 1, "Up: %.2f MB/s", interface.uploadSpeed / (1024 * 1024));
         mvwprintw(networkWindow, row++, 1, "Max Down: %.2f MB/s", interface.maxDownloadSpeed / (1024 * 1024));
@@ -226,7 +304,6 @@ void Display::updateNetworkInfo(const std::vector<NetworkInterface>& interfaces)
 
     wrefresh(networkWindow);
 }
-
 
 void Display::scrollProcessList(int direction) {
     processListScrollPosition += direction;
@@ -271,4 +348,3 @@ void Display::forceUpdate(const SystemMonitor& monitor) {
         needsUpdate = false;
     }
 }
-

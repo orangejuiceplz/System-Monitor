@@ -8,6 +8,7 @@
 struct NetworkInterface {
     std::string name;
     std::string type;
+    std::string ipAddress;
     unsigned long long bytesReceived;
     unsigned long long bytesSent;
     double downloadSpeed;
@@ -29,4 +30,5 @@ private:
     std::string getInterfaceType(const std::string& name) const;
     bool isInterfaceActive(const std::string& name) const;
     unsigned long long readSysfsValue(const std::string& interface, const std::string& file) const;
+    std::string getIpAddress(const std::string& interface) const;
 };
