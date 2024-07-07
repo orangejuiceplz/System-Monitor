@@ -57,19 +57,55 @@ void SystemMonitor::initializeMemoryInfo() {
 
 void SystemMonitor::initializeDiskInfo() {
     try {
+        // First, try to get the root device name
+        std::string rootDevice = getRootDeviceName();
+        if (!rootDevice.empty()) {
+            diskName = rootDevice;
+            auto space = std::filesystem::space("/");
+            totalDiskSpace = space.capacity;
+            return;
+        }
+
         for (const auto& entry : std::filesystem::directory_iterator("/dev")) {
             std::string path = entry.path().string();
-            if (path.find("nvme") != std::string::npos || path.find("sd") != std::string::npos) {
+            if (path.find("nvme") != std::string::npos) {
                 diskName = path;
-                auto space = std::filesystem::space(path);
+                auto space = std::filesystem::space("/");  
                 totalDiskSpace = space.capacity;
-                break;
+                return;
             }
         }
+        
+        for (const auto& entry : std::filesystem::directory_iterator("/dev")) {
+            std::string path = entry.path().string();
+            if (path.find("sd") != std::string::npos) {
+                diskName = path;
+                auto space = std::filesystem::space("/");  
+                totalDiskSpace = space.capacity;
+                return;
+            }
+        }
+        logger->logError("No suitable drive found");
     } catch (const std::filesystem::filesystem_error& e) {
         logger->logError("Error getting disk info: " + std::string(e.what()));
     }
 }
+
+std::string SystemMonitor::getRootDeviceName() {
+    std::ifstream mounts("/proc/mounts");
+    std::string line;
+    while (std::getline(mounts, line)) {
+        std::istringstream iss(line);
+        std::string device, mountpoint, fs;
+        iss >> device >> mountpoint >> fs;
+        if (mountpoint == "/") {
+            return device;
+        }
+    }
+    return "";
+}
+
+
 
 bool SystemMonitor::initializeGPU() {
     if (nvml_available) {

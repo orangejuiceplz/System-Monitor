@@ -179,6 +179,7 @@ void Display::updateDiskWindow(const SystemMonitor& monitor) {
     wrefresh(diskWindow);
 }
 
+
 void Display::updateGPUInfo(const std::vector<GPUInfo>& gpuInfos) {
     int startY = 7;
     for (const auto& gpu : gpuInfos) {

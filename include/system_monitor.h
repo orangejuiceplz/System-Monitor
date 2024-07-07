@@ -60,4 +60,5 @@ private:
     void initializeCpuInfo();
     void initializeMemoryInfo();
     void initializeDiskInfo();
+    std::string getRootDeviceName();
 };
