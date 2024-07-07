@@ -22,7 +22,9 @@ int main() {
     }
 
     logger->logInfo("System Monitor started");
-    display.addLogMessage("System Monitor started");
+    display.addLogMessage("System Monitor started.");
+    display.addLogMessage("Use 'q' to quit the app and UP/DOWN arrows to scroll");
+
 
     try {
         monitor.run();

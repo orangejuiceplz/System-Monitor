@@ -2,10 +2,13 @@
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
+#include <chrono>
+#include <ctime>
 
 Display::Display() : mainWindow(nullptr), cpuWindow(nullptr), memoryWindow(nullptr), diskWindow(nullptr),
                      logWindow(nullptr), processWindow(nullptr), networkWindow(nullptr), 
-                     processListScrollPosition(0), needsUpdate(false), networkWindowWidth(30) {
+                     batteryWindow(nullptr), gpuWindow(nullptr), timeWindow(nullptr),
+                     processListScrollPosition(0), needsUpdate(false) {
     initializeScreen();
 }
 
@@ -17,6 +20,9 @@ Display::~Display() {
     if (logWindow) delwin(logWindow);
     if (processWindow) delwin(processWindow);
     if (networkWindow) delwin(networkWindow);
+    if (batteryWindow) delwin(batteryWindow);
+    if (gpuWindow) delwin(gpuWindow);
+    if (timeWindow) delwin(timeWindow);
     endwin();
 }
 
@@ -27,12 +33,6 @@ void Display::initializeScreen() {
     keypad(stdscr, TRUE);
     nodelay(stdscr, TRUE);
     curs_set(0);
-
-    if (has_colors() == FALSE) {
-        endwin();
-        throw std::runtime_error("Your terminal does not support color");
-    }
-
     start_color();
     use_default_colors();
 
@@ -45,14 +45,22 @@ void Display::initializeScreen() {
     int yMax, xMax;
     getmaxyx(stdscr, yMax, xMax);
 
-    mainWindow = newwin(yMax - 24, xMax - networkWindowWidth, 0, 0);
-    cpuWindow = newwin(6, (xMax - networkWindowWidth) / 3, 0, 0);
-    memoryWindow = newwin(6, (xMax - networkWindowWidth) / 3, 0, (xMax - networkWindowWidth) / 3);
-    diskWindow = newwin(6, (xMax - networkWindowWidth) / 3, 0, 2 * (xMax - networkWindowWidth) / 3);
-    processWindow = newwin(12, xMax - networkWindowWidth, yMax - 24, 0);
-    logWindow = newwin(12, xMax - networkWindowWidth, yMax - 12, 0);
-    networkWindow = newwin(yMax, networkWindowWidth, 0, xMax - networkWindowWidth);
+    int halfWidth = xMax / 2;
+    int processWidth = 2 * halfWidth / 3;
+    int networkWidth = halfWidth - processWidth;
+    int logWidth = xMax - halfWidth;
 
+    timeWindow = newwin(1, xMax, 0, 0);
+    cpuWindow = newwin(8, halfWidth, 1, 0);
+    gpuWindow = newwin(8, halfWidth, 1, halfWidth);
+    memoryWindow = newwin(6, halfWidth, 9, 0);
+    diskWindow = newwin(6, halfWidth, 9, halfWidth);
+    processWindow = newwin(yMax - 15, processWidth, 15, 0);
+    networkWindow = newwin((yMax - 15) / 2, networkWidth, 15, processWidth);
+    batteryWindow = newwin((yMax - 15) / 2, networkWidth, 15 + (yMax - 15) / 2, processWidth);
+    logWindow = newwin(yMax - 15, logWidth, 15, halfWidth);
+
+    // Enable keypad input for all windows
     keypad(mainWindow, TRUE);
     keypad(cpuWindow, TRUE);
     keypad(memoryWindow, TRUE);
@@ -60,250 +68,149 @@ void Display::initializeScreen() {
     keypad(logWindow, TRUE);
     keypad(processWindow, TRUE);
     keypad(networkWindow, TRUE);
+    keypad(batteryWindow, TRUE);
+    keypad(gpuWindow, TRUE);
+    keypad(timeWindow, TRUE);
 }
 
 void Display::update(const SystemMonitor& monitor) {
-    updateMainWindow(monitor);
+    updateTimeInfo(monitor);
     updateCPUWindow(monitor);
+    updateGPUInfo(monitor.getGPUInfo());
     updateMemoryWindow(monitor);
     updateDiskWindow(monitor);
     updateProcessWindow(monitor.getProcesses());
     updateNetworkInfo(monitor.getNetworkInterfaces());
+    updateBatteryInfo(monitor);
     updateLogWindow();
 }
 
-void Display::updateMainWindow(const SystemMonitor& monitor) {
-    wclear(mainWindow);
-    int yMax, xMax;
-    getmaxyx(mainWindow, yMax, xMax);
-
-    box(mainWindow, 0, 0);
-
-    if (COLORS >= 8) {
-        wattron(mainWindow, COLOR_PAIR(1) | A_BOLD);
-    } else {
-        wattron(mainWindow, A_BOLD);
-    }
-    mvwprintw(mainWindow, 1, (xMax - 20) / 2, "System Monitor");
-    if (COLORS >= 8) {
-        wattroff(mainWindow, COLOR_PAIR(1) | A_BOLD);
-    } else {
-        wattroff(mainWindow, A_BOLD);
-    }
-
-    if (monitor.isGPUMonitoringAvailable()) {
-        updateGPUInfo(monitor.getGPUInfo());
-    }
-
-    if (COLORS >= 8) {
-        wattron(mainWindow, COLOR_PAIR(2));
-    } else {
-        wattron(mainWindow, A_UNDERLINE);
-    }
-    mvwprintw(mainWindow, yMax - 2, 2, "Press 'q' to quit, UP/DOWN to scroll processes");
-    if (COLORS >= 8) {
-        wattroff(mainWindow, COLOR_PAIR(2));
-    } else {
-        wattroff(mainWindow, A_UNDERLINE);
-    }
-
-    wrefresh(mainWindow);
+void Display::updateTimeInfo(const SystemMonitor& monitor) {
+    wclear(timeWindow);
+    mvwprintw(timeWindow, 0, (COLS - 40) / 2, "Current Time: %s | Uptime: %s", 
+              getCurrentTime().c_str(), formatUptime(monitor.getUptime()).c_str());
+    wrefresh(timeWindow);
 }
 
 void Display::updateCPUWindow(const SystemMonitor& monitor) {
     wclear(cpuWindow);
     box(cpuWindow, 0, 0);
-
-    if (COLORS >= 8) {
-        wattron(cpuWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattron(cpuWindow, A_BOLD);
-    }
     mvwprintw(cpuWindow, 0, 2, "CPU");
-    if (COLORS >= 8) {
-        wattroff(cpuWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattroff(cpuWindow, A_BOLD);
-    }
-
     mvwprintw(cpuWindow, 1, 2, "Model: %s", monitor.getCpuModel().c_str());
-    mvwprintw(cpuWindow, 2, 2, "Usage: %.2f%%", monitor.getCpuUsage());
+    mvwprintw(cpuWindow, 2, 2, "Overall Usage: %.2f%%", monitor.getCpuUsage());
 
+    const auto& coreInfo = monitor.getCPUCoreInfo();
+    for (size_t i = 0; i < coreInfo.size() && i < 4; ++i) {
+        mvwprintw(cpuWindow, 3 + i, 2, "Core %zu: %.2f%% (%.1f°C)", 
+                  i, coreInfo[i].utilization, coreInfo[i].temperature);
+    }
     wrefresh(cpuWindow);
 }
 
 void Display::updateMemoryWindow(const SystemMonitor& monitor) {
     wclear(memoryWindow);
     box(memoryWindow, 0, 0);
-
-    if (COLORS >= 8) {
-        wattron(memoryWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattron(memoryWindow, A_BOLD);
-    }
     mvwprintw(memoryWindow, 0, 2, "Memory");
-    if (COLORS >= 8) {
-        wattroff(memoryWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattroff(memoryWindow, A_BOLD);
-    }
-
     double totalMemoryGB = monitor.getTotalMemory() / (1024.0 * 1024 * 1024);
     mvwprintw(memoryWindow, 1, 2, "Total: %.2f GB", totalMemoryGB);
     mvwprintw(memoryWindow, 2, 2, "Usage: %.2f%%", monitor.getMemoryUsage());
-
     wrefresh(memoryWindow);
 }
 
 void Display::updateDiskWindow(const SystemMonitor& monitor) {
     wclear(diskWindow);
     box(diskWindow, 0, 0);
-
-    if (COLORS >= 8) {
-        wattron(diskWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattron(diskWindow, A_BOLD);
-    }
     mvwprintw(diskWindow, 0, 2, "Disk");
-    if (COLORS >= 8) {
-        wattroff(diskWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattroff(diskWindow, A_BOLD);
+    const auto& partitions = monitor.getDiskPartitions();
+    for (size_t i = 0; i < partitions.size() && i < 4; ++i) {
+        const auto& part = partitions[i];
+        double totalGB = part.totalSpace / (1024.0 * 1024 * 1024);
+        double usedGB = part.usedSpace / (1024.0 * 1024 * 1024);
+        double usagePercent = (static_cast<double>(part.usedSpace) / part.totalSpace) * 100.0;
+        mvwprintw(diskWindow, 1 + i, 2, "%s (%s): %.1f/%.1f GB (%.2f%%)", 
+                  part.name.c_str(), part.mountPoint.c_str(), usedGB, totalGB, usagePercent);
     }
-
-    double totalDiskGB = monitor.getTotalDiskSpace() / (1024.0 * 1024 * 1024);
-    mvwprintw(diskWindow, 1, 2, "Total: %.2f GB", totalDiskGB);
-    mvwprintw(diskWindow, 2, 2, "Usage: %.2f%%", monitor.getDiskUsage());
-    mvwprintw(diskWindow, 3, 2, "Device: %s", monitor.getDiskName().c_str());
-
     wrefresh(diskWindow);
-}
-
-
-void Display::updateGPUInfo(const std::vector<GPUInfo>& gpuInfos) {
-    int startY = 7;
-    for (const auto& gpu : gpuInfos) {
-        mvwprintw(mainWindow, startY++, 2, "GPU %d: %s", gpu.index, gpu.name.c_str());
-        mvwprintw(mainWindow, startY, 4, "Temp: ");
-        if (gpu.temperature >= 0) {
-            mvwprintw(mainWindow, startY, 10, "%.1f°C", gpu.temperature);
-        } else {
-            mvwprintw(mainWindow, startY, 10, "N/A");
-        }
-        mvwprintw(mainWindow, startY, 20, "Util: ");
-        if (gpu.gpuUtilization >= 0) {
-            mvwprintw(mainWindow, startY, 26, "%.1f%%", gpu.gpuUtilization);
-        } else {
-            mvwprintw(mainWindow, startY, 26, "N/A");
-        }
-        mvwprintw(mainWindow, startY, 36, "Mem: ");
-        if (gpu.memoryUtilization >= 0) {
-            mvwprintw(mainWindow, startY, 41, "%.1f%%", gpu.memoryUtilization);
-        } else {
-            mvwprintw(mainWindow, startY, 41, "N/A");
-        }
-        if (gpu.fanSpeedAvailable) {
-            mvwprintw(mainWindow, startY, 51, "Fan: %.1f%%", gpu.fanSpeed);
-        }
-        startY += 2;
-    }
-}
-
-void Display::updateLogWindow() {
-    wclear(logWindow);
-    box(logWindow, 0, 0);
-
-    if (COLORS >= 8) {
-        wattron(logWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattron(logWindow, A_BOLD);
-    }
-    mvwprintw(logWindow, 0, 2, "Log Messages");
-    if (COLORS >= 8) {
-        wattroff(logWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattroff(logWindow, A_BOLD);
-    }
-
-    size_t startIndex = logMessages.size() > MAX_LOG_MESSAGES ? logMessages.size() - MAX_LOG_MESSAGES : 0;
-    for (size_t i = 0; i < MAX_LOG_MESSAGES && startIndex + i < logMessages.size(); ++i) {
-        mvwprintw(logWindow, i + 1, 2, "%s", logMessages[startIndex + i].c_str());
-    }
-
-    wrefresh(logWindow);
 }
 
 void Display::updateProcessWindow(const std::vector<ProcessInfo>& processes) {
     wclear(processWindow);
     box(processWindow, 0, 0);
-
-    if (COLORS >= 8) {
-        wattron(processWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattron(processWindow, A_BOLD);
-    }
     mvwprintw(processWindow, 0, 2, "Process List (Use UP/DOWN to scroll)");
-    if (COLORS >= 8) {
-        wattroff(processWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattroff(processWindow, A_BOLD);
-    }
+    int maxRows, maxCols;
+    getmaxyx(processWindow, maxRows, maxCols);
+    int displayableRows = maxRows - 2;  // Subtract 2 for the box borders
 
-    int row = 1;
-    for (size_t i = processListScrollPosition; i < processes.size() && row < PROCESS_WINDOW_HEIGHT; ++i) {
+    size_t startIndex = processListScrollPosition;
+    size_t endIndex = std::min(startIndex + displayableRows, processes.size());
+
+    for (size_t i = startIndex; i < endIndex; ++i) {
         const auto& process = processes[i];
-        mvwprintw(processWindow, row, 1, "%-20s CPU: %5.1f%% Mem: %5.1f MB",
+        mvwprintw(processWindow, i - startIndex + 1, 1, "%-20s CPU: %5.1f%% Mem: %5.1f MB",
                   process.name.c_str(), process.cpuUsage, process.memoryUsage);
-        row++;
     }
-
     wrefresh(processWindow);
 }
 
 void Display::updateNetworkInfo(const std::vector<NetworkInterface>& interfaces) {
     wclear(networkWindow);
     box(networkWindow, 0, 0);
-
-    if (COLORS >= 8) {
-        wattron(networkWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattron(networkWindow, A_BOLD);
-    }
     mvwprintw(networkWindow, 0, 2, "Network Information");
-    if (COLORS >= 8) {
-        wattroff(networkWindow, COLOR_PAIR(3) | A_BOLD);
-    } else {
-        wattroff(networkWindow, A_BOLD);
-    }
-
     int row = 1;
-    double totalDownloadSpeed = 0;
-    double totalUploadSpeed = 0;
-    unsigned long long totalBytesReceived = 0;
-    unsigned long long totalBytesSent = 0;
+    double maxDownloadSpeed = 0;
+    double maxUploadSpeed = 0;
 
     for (const auto& interface : interfaces) {
         mvwprintw(networkWindow, row++, 1, "%s (%s)", interface.name.c_str(), interface.type.c_str());
         mvwprintw(networkWindow, row++, 1, "IP: %s", interface.ipAddress.c_str());
         mvwprintw(networkWindow, row++, 1, "Down: %.2f MB/s", interface.downloadSpeed / (1024 * 1024));
         mvwprintw(networkWindow, row++, 1, "Up: %.2f MB/s", interface.uploadSpeed / (1024 * 1024));
-        mvwprintw(networkWindow, row++, 1, "Max Down: %.2f MB/s", interface.maxDownloadSpeed / (1024 * 1024));
-        mvwprintw(networkWindow, row++, 1, "Max Up: %.2f MB/s", interface.maxUploadSpeed / (1024 * 1024));
         row++;
 
-        totalDownloadSpeed += interface.downloadSpeed;
-        totalUploadSpeed += interface.uploadSpeed;
-        totalBytesReceived += interface.bytesReceived;
-        totalBytesSent += interface.bytesSent;
+        maxDownloadSpeed = std::max(maxDownloadSpeed, interface.downloadSpeed);
+        maxUploadSpeed = std::max(maxUploadSpeed, interface.uploadSpeed);
     }
 
-    mvwprintw(networkWindow, row++, 1, "Total Network Usage:");
-    mvwprintw(networkWindow, row++, 1, "Down: %.2f MB/s", totalDownloadSpeed / (1024 * 1024));
-    mvwprintw(networkWindow, row++, 1, "Up: %.2f MB/s", totalUploadSpeed / (1024 * 1024));
-    mvwprintw(networkWindow, row++, 1, "Total Received: %.2f GB", totalBytesReceived / (1024.0 * 1024 * 1024));
-    mvwprintw(networkWindow, row++, 1, "Total Sent: %.2f GB", totalBytesSent / (1024.0 * 1024 * 1024));
+    mvwprintw(networkWindow, row++, 1, "Max Down: %.2f MB/s", maxDownloadSpeed / (1024 * 1024));
+    mvwprintw(networkWindow, row++, 1, "Max Up: %.2f MB/s", maxUploadSpeed / (1024 * 1024));
 
     wrefresh(networkWindow);
+}
+
+
+void Display::updateLogWindow() {
+    wclear(logWindow);
+    box(logWindow, 0, 0);
+    mvwprintw(logWindow, 0, 2, "Log Messages");
+    size_t startIndex = logMessages.size() > MAX_LOG_MESSAGES ? logMessages.size() - MAX_LOG_MESSAGES : 0;
+    for (size_t i = 0; i < MAX_LOG_MESSAGES && startIndex + i < logMessages.size(); ++i) {
+        mvwprintw(logWindow, i + 1, 2, "%s", logMessages[startIndex + i].c_str());
+    }
+    wrefresh(logWindow);
+}
+
+void Display::updateGPUInfo(const std::vector<GPUInfo>& gpuInfos) {
+    wclear(gpuWindow);
+    box(gpuWindow, 0, 0);
+    mvwprintw(gpuWindow, 0, 2, "GPU");
+    for (size_t i = 0; i < gpuInfos.size() && i < 2; ++i) {
+        const auto& gpu = gpuInfos[i];
+        mvwprintw(gpuWindow, 1 + i * 2, 2, "GPU %d: %s", gpu.index, gpu.name.c_str());
+        mvwprintw(gpuWindow, 2 + i * 2, 2, "Temp: %.1f°C | Util: %.1f%% | Mem: %.1f%%", 
+                  gpu.temperature, gpu.gpuUtilization, gpu.memoryUtilization);
+    }
+    wrefresh(gpuWindow);
+}
+
+void Display::updateBatteryInfo(const SystemMonitor& monitor) {
+    wclear(batteryWindow);
+    box(batteryWindow, 0, 0);
+    mvwprintw(batteryWindow, 0, 2, "Battery");
+    const auto& battery = monitor.getBatteryMonitor();
+    mvwprintw(batteryWindow, 1, 2, "State: %s", battery.getState().c_str());
+    mvwprintw(batteryWindow, 2, 2, "Percentage: %.2f%%", battery.getPercentage());
+    mvwprintw(batteryWindow, 3, 2, "Est. Time: %s", battery.getEstimatedTime().c_str());
+    wrefresh(batteryWindow);
 }
 
 void Display::scrollProcessList(int direction) {
@@ -319,7 +226,8 @@ void Display::showAlert(const std::string& message) {
 }
 
 void Display::addLogMessage(const std::string& message) {
-    logMessages.push_back(message);
+    std::string timestampedMessage = getCurrentTime() + " - " + message;
+    logMessages.push_back(timestampedMessage);
     if (logMessages.size() > MAX_LOG_MESSAGES) {
         logMessages.erase(logMessages.begin());
     }
@@ -348,4 +256,23 @@ void Display::forceUpdate(const SystemMonitor& monitor) {
         updateProcessWindow(monitor.getProcesses());
         needsUpdate = false;
     }
+}
+
+std::string Display::formatUptime(long uptime) const {
+    int days = uptime / (24 * 3600);
+    int hours = (uptime % (24 * 3600)) / 3600;
+    int minutes = (uptime % 3600) / 60;
+    int seconds = uptime % 60;
+
+    std::ostringstream oss;
+    oss << days << "d " << hours << "h " << minutes << "m " << seconds << "s";
+    return oss.str();
+}
+
+std::string Display::getCurrentTime() const {
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
+    return ss.str();
 }

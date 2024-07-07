@@ -34,6 +34,7 @@ add_executable(system_monitor
     src/logger.cpp
     src/gpu_monitor.cpp
     src/network_monitor.cpp
+    src/battery_monitor.cpp
 )
 
 target_link_libraries(system_monitor 

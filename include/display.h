@@ -4,6 +4,7 @@
 #include "network_monitor.h"
 #include <ncurses.h>
 #include <vector>
+#include <string>
 
 class Display {
 public:
@@ -23,6 +24,10 @@ private:
     WINDOW* logWindow;
     WINDOW* processWindow;
     WINDOW* networkWindow;
+    WINDOW* batteryWindow;
+    WINDOW* gpuWindow;
+    WINDOW* timeWindow;
+
     std::vector<std::string> logMessages;
     size_t processListScrollPosition;
     bool needsUpdate;
@@ -37,8 +42,13 @@ private:
     void updateNetworkInfo(const std::vector<NetworkInterface>& interfaces);
     void updateLogWindow();
     void updateGPUInfo(const std::vector<GPUInfo>& gpuInfos);
+    void updateBatteryInfo(const SystemMonitor& monitor);
+    void updateTimeInfo(const SystemMonitor& monitor);
     void scrollProcessList(int direction);
 
+    std::string formatUptime(long uptime) const;
+    std::string getCurrentTime() const;
+
     static const size_t MAX_LOG_MESSAGES = 10;
-    static const int PROCESS_WINDOW_HEIGHT = 10;
+    static const int PROCESS_WINDOW_HEIGHT = 15;
 };
