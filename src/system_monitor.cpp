@@ -223,7 +223,7 @@ double SystemMonitor::calculateCpuUsage() {
     unsigned long long total = (totalUser - lastTotalUser) + (totalUserLow - lastTotalUserLow) +
                                (totalSys - lastTotalSys);
     total += (totalIdle - lastTotalIdle);
-        double percent = (total - (totalIdle - lastTotalIdle)) / static_cast<double>(total);
+    double percent = (total - (totalIdle - lastTotalIdle)) / static_cast<double>(total);
 
     lastTotalUser = totalUser;
     lastTotalUserLow = totalUserLow;
@@ -266,6 +266,13 @@ void SystemMonitor::updateCPUCoreInfo() {
             int temp;
             if (tempFile >> temp) {
                 cpuCoreInfo[coreIndex].temperature = temp / 1000.0; // Convert from millidegrees to degrees
+            }
+
+            // Read core clock speed
+            std::ifstream freqFile("/sys/devices/system/cpu/cpu" + std::to_string(coreIndex) + "/cpufreq/scaling_cur_freq");
+            unsigned long long freq;
+            if (freqFile >> freq) {
+                cpuCoreInfo[coreIndex].clockSpeed = freq / 1000000.0; // Convert from kHz to GHz
             }
 
             coreIndex++;
@@ -320,7 +327,6 @@ void SystemMonitor::updateDiskPartitions() {
         iss >> device >> mountPoint >> fsType;
 
         if (starts_with(device, "/dev/") && fsType != "tmpfs" && fsType != "devtmpfs") {
-
             try {
                 auto space = std::filesystem::space(mountPoint);
                 DiskPartitionInfo partInfo;
@@ -398,4 +404,3 @@ void SystemMonitor::run() {
         }
     }
 }
-
