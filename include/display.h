@@ -45,8 +45,7 @@ private:
     void updateBatteryInfo(const SystemMonitor& monitor);
     void updateTimeInfo(const SystemMonitor& monitor);
     void scrollProcessList(int direction);
-    size_t cpuWindowScrollPosition;
-    static const size_t CORES_PER_PAGE = 2;
+
     std::string formatUptime(long uptime) const;
     std::string getCurrentTime() const;
     void drawBarGraph(WINDOW* win, int y, int x, int width, double percentage);
