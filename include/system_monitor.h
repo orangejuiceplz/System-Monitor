@@ -18,6 +18,19 @@ class Display;
 struct CPUCoreInfo {
     double utilization;
     double temperature;
+    double clockSpeed;
+};
+
+struct GPUInfo {
+    int index;
+    std::string name;
+    float temperature;
+    float powerUsage;
+    float fanSpeed;
+    float gpuUtilization;
+    float memoryUtilization;
+    bool fanSpeedAvailable;
+    float clockSpeed;
 };
 
 struct DiskPartitionInfo {

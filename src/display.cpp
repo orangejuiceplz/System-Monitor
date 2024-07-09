@@ -51,14 +51,14 @@ void Display::initializeScreen() {
     int logWidth = xMax - halfWidth;
 
     timeWindow = newwin(1, xMax, 0, 0);
-    cpuWindow = newwin(8, halfWidth, 1, 0);
-    gpuWindow = newwin(8, halfWidth, 1, halfWidth);
-    memoryWindow = newwin(6, halfWidth, 9, 0);
-    diskWindow = newwin(6, halfWidth, 9, halfWidth);
-    processWindow = newwin(yMax - 15, processWidth, 15, 0);
-    networkWindow = newwin((yMax - 15) / 2, networkWidth, 15, processWidth);
-    batteryWindow = newwin((yMax - 15) / 2, networkWidth, 15 + (yMax - 15) / 2, processWidth);
-    logWindow = newwin(yMax - 15, logWidth, 15, halfWidth);
+    cpuWindow = newwin(yMax / 2, halfWidth, 1, 0);
+    gpuWindow = newwin(yMax / 4, halfWidth, 1, halfWidth);
+    memoryWindow = newwin(yMax / 4, halfWidth, yMax / 4 + 1, halfWidth);
+    diskWindow = newwin(yMax / 4, halfWidth, yMax / 2 + 1, halfWidth);
+    processWindow = newwin(yMax / 2 - 1, processWidth, yMax / 2 + 1, 0);
+    networkWindow = newwin(yMax / 4, networkWidth, yMax / 2 + 1, processWidth);
+    batteryWindow = newwin(yMax / 4, networkWidth, 3 * yMax / 4 + 1, processWidth);
+    logWindow = newwin(yMax / 2 - 1, logWidth, yMax / 2 + 1, halfWidth);
 
     // Enable keypad input for all windows
     keypad(mainWindow, TRUE);
@@ -98,11 +98,15 @@ void Display::updateCPUWindow(const SystemMonitor& monitor) {
     mvwprintw(cpuWindow, 0, 2, "CPU");
     mvwprintw(cpuWindow, 1, 2, "Model: %s", monitor.getCpuModel().c_str());
     mvwprintw(cpuWindow, 2, 2, "Overall Usage: %.2f%%", monitor.getCpuUsage());
+    drawBarGraph(cpuWindow, 3, 2, 20, monitor.getCpuUsage());
 
     const auto& coreInfo = monitor.getCPUCoreInfo();
-    for (size_t i = 0; i < coreInfo.size() && i < 4; ++i) {
-        mvwprintw(cpuWindow, 3 + i, 2, "Core %zu: %.2f%% (%.1f°C)", 
-                  i, coreInfo[i].utilization, coreInfo[i].temperature);
+    int row = 4;
+    for (size_t i = 0; i < coreInfo.size(); ++i) {
+        mvwprintw(cpuWindow, row, 2, "Core %zu: %.2f%% (%.1f°C) %.2f GHz", 
+                  i, coreInfo[i].utilization, coreInfo[i].temperature, coreInfo[i].clockSpeed);
+        drawBarGraph(cpuWindow, row + 1, 2, 20, coreInfo[i].utilization);
+        row += 2;
     }
     wrefresh(cpuWindow);
 }
@@ -114,6 +118,7 @@ void Display::updateMemoryWindow(const SystemMonitor& monitor) {
     double totalMemoryGB = monitor.getTotalMemory() / (1024.0 * 1024 * 1024);
     mvwprintw(memoryWindow, 1, 2, "Total: %.2f GB", totalMemoryGB);
     mvwprintw(memoryWindow, 2, 2, "Usage: %.2f%%", monitor.getMemoryUsage());
+    drawBarGraph(memoryWindow, 3, 2, 20, monitor.getMemoryUsage());
     wrefresh(memoryWindow);
 }
 
@@ -127,8 +132,9 @@ void Display::updateDiskWindow(const SystemMonitor& monitor) {
         double totalGB = part.totalSpace / (1024.0 * 1024 * 1024);
         double usedGB = part.usedSpace / (1024.0 * 1024 * 1024);
         double usagePercent = (static_cast<double>(part.usedSpace) / part.totalSpace) * 100.0;
-        mvwprintw(diskWindow, 1 + i, 2, "%s (%s): %.1f/%.1f GB (%.2f%%)", 
+        mvwprintw(diskWindow, 1 + i * 2, 2, "%s (%s): %.1f/%.1f GB (%.2f%%)", 
                   part.name.c_str(), part.mountPoint.c_str(), usedGB, totalGB, usagePercent);
+        drawBarGraph(diskWindow, 2 + i * 2, 2, 20, usagePercent);
     }
     wrefresh(diskWindow);
 }
@@ -163,8 +169,12 @@ void Display::updateNetworkInfo(const std::vector<NetworkInterface>& interfaces)
     for (const auto& interface : interfaces) {
         mvwprintw(networkWindow, row++, 1, "%s (%s)", interface.name.c_str(), interface.type.c_str());
         mvwprintw(networkWindow, row++, 1, "IP: %s", interface.ipAddress.c_str());
-        mvwprintw(networkWindow, row++, 1, "Down: %.2f MB/s", interface.downloadSpeed / (1024 * 1024));
-        mvwprintw(networkWindow, row++, 1, "Up: %.2f MB/s", interface.uploadSpeed / (1024 * 1024));
+        mvwprintw(networkWindow, row++, 1, "Down: %.2f MB/s (Total: %s)", 
+                  interface.downloadSpeed / (1024 * 1024),
+                  formatBytes(interface.totalBytesReceived).c_str());
+        mvwprintw(networkWindow, row++, 1, "Up: %.2f MB/s (Total: %s)", 
+                  interface.uploadSpeed / (1024 * 1024),
+                  formatBytes(interface.totalBytesSent).c_str());
         row++;
 
         maxDownloadSpeed = std::max(maxDownloadSpeed, interface.downloadSpeed);
@@ -176,7 +186,6 @@ void Display::updateNetworkInfo(const std::vector<NetworkInterface>& interfaces)
 
     wrefresh(networkWindow);
 }
-
 
 void Display::updateLogWindow() {
     wclear(logWindow);
@@ -195,9 +204,10 @@ void Display::updateGPUInfo(const std::vector<GPUInfo>& gpuInfos) {
     mvwprintw(gpuWindow, 0, 2, "GPU");
     for (size_t i = 0; i < gpuInfos.size() && i < 2; ++i) {
         const auto& gpu = gpuInfos[i];
-        mvwprintw(gpuWindow, 1 + i * 2, 2, "GPU %d: %s", gpu.index, gpu.name.c_str());
-        mvwprintw(gpuWindow, 2 + i * 2, 2, "Temp: %.1f°C | Util: %.1f%% | Mem: %.1f%%", 
-                  gpu.temperature, gpu.gpuUtilization, gpu.memoryUtilization);
+        mvwprintw(gpuWindow, 1 + i * 4, 2, "GPU %d: %s", gpu.index, gpu.name.c_str());
+        mvwprintw(gpuWindow, 2 + i * 4, 2, "Temp: %.1f°C | Clock: %.0f MHz", gpu.temperature, gpu.clockSpeed);
+        mvwprintw(gpuWindow, 3 + i * 4, 2, "Util: %.1f%% | Mem: %.1f%%", gpu.gpuUtilization, gpu.memoryUtilization);
+        drawBarGraph(gpuWindow, 4 + i * 4, 2, 20, gpu.gpuUtilization);
     }
     wrefresh(gpuWindow);
 }
@@ -274,5 +284,26 @@ std::string Display::getCurrentTime() const {
     auto time = std::chrono::system_clock::to_time_t(now);
     std::stringstream ss;
     ss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
+    return ss.str();
+}
+
+void Display::drawBarGraph(WINDOW* win, int y, int x, int width, double percentage) {
+    int filledWidth = static_cast<int>(width * percentage / 100.0);
+    mvwhline(win, y, x, ACS_BLOCK, filledWidth);
+    mvwhline(win, y, x + filledWidth, ACS_HLINE, width - filledWidth);
+}
+
+std::string Display::formatBytes(unsigned long long bytes) {
+    const char* units[] = {"B", "KB", "MB", "GB", "TB"};
+    int unitIndex = 0;
+    double size = static_cast<double>(bytes);
+
+    while (size >= 1024 && unitIndex < 4) {
+        size /= 1024;
+        unitIndex++;
+    }
+
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(2) << size << " " << units[unitIndex];
     return ss.str();
 }
