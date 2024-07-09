@@ -15,6 +15,8 @@ struct NetworkInterface {
     double uploadSpeed;
     double maxDownloadSpeed;
     double maxUploadSpeed;
+    unsigned long long totalBytesReceived;
+    unsigned long long totalBytesSent;
 };
 
 class NetworkMonitor {

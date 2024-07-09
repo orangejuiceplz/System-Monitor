@@ -48,6 +48,8 @@ private:
 
     std::string formatUptime(long uptime) const;
     std::string getCurrentTime() const;
+    void drawBarGraph(WINDOW* win, int y, int x, int width, double percentage);
+    std::string formatBytes(unsigned long long bytes);
 
     static const size_t MAX_LOG_MESSAGES = 10;
     static const int PROCESS_WINDOW_HEIGHT = 15;
