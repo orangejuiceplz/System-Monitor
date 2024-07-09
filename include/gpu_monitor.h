@@ -13,7 +13,9 @@ struct GPUInfo {
     float gpuUtilization;
     float memoryUtilization;
     bool fanSpeedAvailable;
+    float clockSpeed;
 };
+
 
 class GPUMonitor {
 public:

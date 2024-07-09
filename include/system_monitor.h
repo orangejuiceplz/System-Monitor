@@ -21,18 +21,6 @@ struct CPUCoreInfo {
     double clockSpeed;
 };
 
-struct GPUInfo {
-    int index;
-    std::string name;
-    float temperature;
-    float powerUsage;
-    float fanSpeed;
-    float gpuUtilization;
-    float memoryUtilization;
-    bool fanSpeedAvailable;
-    float clockSpeed;
-};
-
 struct DiskPartitionInfo {
     std::string name;
     std::string mountPoint;
