@@ -1,5 +1,5 @@
 > [!IMPORTANT]
-> probably gonna transition this into a terminal app soon within the next ~50 commits
+> taking a break on this project to work on some other things for now, only a short while
 
 # System-Monitor 🖥️
 
