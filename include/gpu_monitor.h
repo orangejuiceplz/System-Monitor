@@ -12,7 +12,10 @@ struct GPUInfo {
     float fanSpeed;
     float gpuUtilization;
     float memoryUtilization;
+    bool fanSpeedAvailable;
+    float clockSpeed;
 };
+
 
 class GPUMonitor {
 public:
@@ -27,6 +30,7 @@ private:
     std::vector<GPUInfo> gpuInfos;
     nvmlReturn_t result;
     unsigned int deviceCount;
+    std::vector<bool> fanUnavailabilityLogged;
 
     void checkNVMLError(nvmlReturn_t result, const char* message);
 };

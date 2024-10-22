@@ -26,6 +26,7 @@ bool GPUMonitor::initialize() {
     }
 
     gpuInfos.resize(deviceCount);
+    fanUnavailabilityLogged.resize(deviceCount, false);
     return true;
 }
 
@@ -55,15 +56,21 @@ void GPUMonitor::update() {
         if (result == NVML_SUCCESS) {
             gpuInfos[i].powerUsage = static_cast<float>(power) / 1000.0f;
         } else {
-            gpuInfos[i].powerUsage = -1.0f; 
+            gpuInfos[i].powerUsage = -1.0f;
         }
 
         unsigned int fanSpeed;
         result = nvmlDeviceGetFanSpeed(device, &fanSpeed);
         if (result == NVML_SUCCESS) {
             gpuInfos[i].fanSpeed = static_cast<float>(fanSpeed);
+            gpuInfos[i].fanSpeedAvailable = true;
         } else {
+            if (!fanUnavailabilityLogged[i]) {
+                std::cerr << "Failed to get GPU " << i << " fan speed: " << nvmlErrorString(result) << std::endl;
+                fanUnavailabilityLogged[i] = true;
+            }
             gpuInfos[i].fanSpeed = -1.0f;
+            gpuInfos[i].fanSpeedAvailable = false;
         }
 
         nvmlUtilization_t utilization;
@@ -72,8 +79,8 @@ void GPUMonitor::update() {
             gpuInfos[i].gpuUtilization = static_cast<float>(utilization.gpu);
             gpuInfos[i].memoryUtilization = static_cast<float>(utilization.memory);
         } else {
-            gpuInfos[i].gpuUtilization = -1.0f; 
-            gpuInfos[i].memoryUtilization = -1.0f; 
+            gpuInfos[i].gpuUtilization = -1.0f;
+            gpuInfos[i].memoryUtilization = -1.0f;
         }
     }
     
